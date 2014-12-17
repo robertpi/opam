@@ -175,9 +175,13 @@ let read_lines f =
     List.rev !lines
   with Sys_error _ -> []
 
+let rec waitpid p = try Unix.waitpid [] p with
+  | Unix.Unix_error (Unix.EINTR,_,_) -> waitpid p
+  | Unix.Unix_error (Unix.ECHILD,_,_) -> p, Unix.WEXITED 256
+
 let wait p =
   let rec iter () =
-    let _, status = Unix.waitpid [] p.p_pid in
+    let _, status = waitpid p.p_pid in
     match status with
     | Unix.WEXITED code ->
       let duration = Unix.gettimeofday () -. p.p_time in

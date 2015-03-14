@@ -72,7 +72,9 @@ type result = {
     [name.info], [name.env], [name.out] and [name.err] are
     created, and contain the process main description, the environment
     variables, the standard output and the standard error.
-    Don't forget to call [cleanup result] afterwards *)
+
+    Don't forget to call [cleanup result] afterwards: this is a low-level
+    command, you should use [Job.run] instead. *)
 val run : command -> result
 
 (** Same as [run], but doesn't wait. Use wait_one to wait and collect

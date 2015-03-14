@@ -40,6 +40,8 @@ end
 
 let raw_dir s = s
 
+(* Pure wrappers over OpamSystem *)
+
 let with_tmp_dir fn =
   OpamSystem.with_tmp_dir (fun dir -> fn (Dir.of_string dir))
 
@@ -49,16 +51,8 @@ let with_tmp_dir_job fjob =
 let rmdir dirname =
   OpamSystem.remove_dir (Dir.to_string dirname)
 
-let cwd () =
-  Dir.of_string (Unix.getcwd ())
-
 let mkdir dirname =
   OpamSystem.mkdir (Dir.to_string dirname)
-
-let cleandir dirname =
-  log "cleandir %a" (slog Dir.to_string) dirname;
-  OpamSystem.remove (Dir.to_string dirname);
-  mkdir dirname
 
 let rec_dirs d =
   let fs = OpamSystem.rec_dirs (Dir.to_string d) in
@@ -73,18 +67,23 @@ let dir_is_empty d =
 
 let in_dir dirname fn = OpamSystem.in_dir dirname fn
 
-let env_of_list l = Array.of_list (List.rev_map (fun (k,v) -> k^"="^v) l)
-
-let exec dirname ?env ?name ?metadata ?keep_going cmds =
-  let env = match env with
-    | None   -> None
-    | Some l -> Some (env_of_list l) in
-  in_dir dirname
-    (fun () -> OpamSystem.commands ?env ?name ?metadata ?keep_going cmds)
-
 let move_dir ~src ~dst =
-  OpamSystem.command ~verbose:(OpamSystem.verbose_for_base_commands ())
-    [ "mv"; Dir.to_string src; Dir.to_string dst ]
+  OpamSystem.sys_command "mv" [Dir.to_string src; Dir.to_string dst ]
+
+
+(* Almost pure wrappers over OpamSystem *)
+
+let cleandir dirname =
+  log "cleandir %a" (slog Dir.to_string) dirname;
+  OpamSystem.remove (Dir.to_string dirname);
+  mkdir dirname
+
+
+let cwd () =
+  Dir.of_string (Unix.getcwd ())
+
+
+let env_of_list l = Array.of_list (List.rev_map (fun (k,v) -> k^"="^v) l)
 
 let exists_dir dirname =
   try (Unix.stat (Dir.to_string dirname)).Unix.st_kind = Unix.S_DIR
@@ -94,8 +93,7 @@ let copy_dir ~src ~dst =
   if exists_dir dst then
     OpamSystem.internal_error
       "Cannot create %s as the directory already exists." (Dir.to_string dst);
-  OpamSystem.command ~verbose:(OpamSystem.verbose_for_base_commands ())
-    [ "cp"; "-PR"; Dir.to_string src; Dir.to_string dst ]
+  OpamSystem.sys_command "cp" ["-PR"; Dir.to_string src; Dir.to_string dst]
 
 let link_dir ~src ~dst =
   if exists_dir dst then
@@ -218,8 +216,7 @@ let install ?exec ~src ~dst () =
 
 let move ~src ~dst =
   if src <> dst then
-    OpamSystem.command ~verbose:(OpamSystem.verbose_for_base_commands ())
-      [ "mv"; to_string src; to_string dst ]
+    OpamSystem.sys_command "mv" [to_string src; to_string dst]
 
 let link ~src ~dst =
   if src <> dst then OpamSystem.link (to_string src) (to_string dst)

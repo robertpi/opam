@@ -261,12 +261,13 @@ let make_urls_txt ~write repo_root =
   rebuild_local_state ~write (OpamRepository.local repo_root)
 
 let make_index_tar_gz repo_root =
-  OpamFilename.in_dir repo_root (fun () ->
-    let dirs = [ "version"; "compilers"; "packages"; "repo" ] in
-    match List.filter Sys.file_exists dirs with
-    | [] -> ()
-    | d  -> OpamSystem.command ("tar" :: "czf" :: "index.tar.gz" :: d)
-  )
+  let dir = OpamFilename.Dir.to_string repo_root in
+  let dirs =
+    List.filter (fun d -> Sys.file_exists (Filename.concat dir d))
+      [ "version"; "compilers"; "packages"; "repo" ]
+  in
+  if dirs = [] then () else
+    OpamSystem.sys_command ~dir "tar" ("czf" :: "index.tar.gz" :: dirs)
 
 let register () =
   OpamRepository.register_backend `http (module B : OpamRepository.BACKEND)

@@ -20,17 +20,17 @@ module Git = struct
 
   let exec repo command =
     OpamFilename.in_dir repo (fun () ->
-        OpamSystem.command command
+        OpamSystem.sys_command (List.hd command) (List.tl command)
       )
 
   let return_one_line repo command =
     OpamFilename.in_dir repo (fun () ->
-        List.hd (OpamSystem.read_command_output command)
+        List.hd (OpamSystem.read_command_output (List.hd command) (List.tl command))
       )
 
   let return repo command =
     OpamFilename.in_dir repo (fun () ->
-        (OpamSystem.read_command_output command)
+        (OpamSystem.read_command_output (List.hd command) (List.tl command))
       )
 
   let commit repo fmt =
@@ -173,7 +173,7 @@ let display stats fn ylabel output =
   Printf.fprintf oc "e";
   close_out oc;
   Printf.printf "Generating %s.png ...\n" output;
-  OpamSystem.command ["gnuplot"; dotfile ]
+  OpamSystem.sys_command "gnuplot" [dotfile]
 
 let process () =
   let stats = stats (OpamFilename.cwd ()) in

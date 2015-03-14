@@ -266,8 +266,6 @@ let real_path p =
       | base -> dir / base
   else p
 
-type command = string list
-
 let default_env =
   Unix.environment ()
 
@@ -382,77 +380,27 @@ let make_command
   else
     command_not_found cmd
 
-let run_process ?verbose ?(env=default_env) ~name ?metadata ?allow_stdin command =
-  let chrono = OpamGlobals.timer () in
-  runs := command :: !runs;
-  match command with
-  | []          -> invalid_arg "run_process"
-  | cmd :: args ->
-
-    (* Check that the command doesn't contain whitespaces *)
-    if None <> try Some (String.index cmd ' ') with Not_found -> None then
-      OpamGlobals.warning "Command %S contains 1 space" cmd;
-
-    if command_exists ~env cmd then (
-
-      let verbose = match verbose with
-        | None   -> !OpamGlobals.verbose_level >= 2
-        | Some b -> b in
-
-      let r =
-        OpamProcess.run
-          (OpamProcess.command ~env ~name ~verbose ?metadata ?allow_stdin
-             cmd args)
-      in
-      let str = String.concat " " (cmd :: args) in
-      log "[%a] (in %.3fs) %s"
-        (OpamGlobals.slog Filename.basename) name
-        (chrono ()) str;
-      r
-    ) else
-      (* Display a user-friendly message if the command does not exist *)
-      command_not_found cmd
-
-let command ?verbose ?env ?name ?metadata ?allow_stdin cmd =
-  let name = log_file name in
-  let r = run_process ?verbose ?env ~name ?metadata ?allow_stdin cmd in
-  OpamProcess.cleanup r;
-  raise_on_process_error r
-
-let commands ?verbose ?env ?name ?metadata ?(keep_going=false) commands =
-  let name = log_file name in
-  let run = run_process ?verbose ?env ~name ?metadata in
-  let command r0 c =
-    match r0, keep_going with
-    | (`Error _ | `Exception _), false -> r0
-    | _ ->
-      let r1 = try
-          let r = run c in
-          if OpamProcess.is_success r then `Successful r else `Error r
-        with Command_not_found _ as e -> `Exception e
-      in
-      match r0 with `Start | `Successful _ -> r1 | _ -> r0
-  in
-  match List.fold_left command `Start commands with
-  | `Start -> ()
-  | `Successful r -> OpamProcess.cleanup r
-  | `Error e -> process_error e
-  | `Exception e -> raise e
-
-let read_command_output ?verbose ?env ?metadata ?allow_stdin cmd =
-  let name = log_file None in
-  let r = run_process ?verbose ?env ~name ?metadata ?allow_stdin cmd in
-  OpamProcess.cleanup r;
-  raise_on_process_error r;
-  r.OpamProcess.r_stdout
-
-(* Return [None] if the command does not exist *)
-let read_command_output_opt ?verbose ?env cmd =
-  try Some (read_command_output ?verbose ?env cmd)
-  with Command_not_found _ -> None
-
 let verbose_for_base_commands () =
   !OpamGlobals.verbose_level >= 3
+
+let sys_command ?(verbose=verbose_for_base_commands()) ?dir
+    cmd args =
+  OpamProcess.Job.run
+    (make_command ~verbose ?dir cmd args
+     @@> fun r -> raise_on_process_error r; Done ())
+
+let read_command_output ?verbose ?env ?metadata ?allow_stdin ?dir cmd args =
+  let c = make_command ?verbose ?env ?metadata ?allow_stdin ?dir cmd args in
+  OpamProcess.Job.(
+    run (c @@> fun r ->
+         raise_on_process_error r;
+         Done r.OpamProcess.r_stdout)
+  )
+
+(* Return [None] if the command does not exist *)
+let read_command_output_opt ?verbose ?env cmd args =
+  try Some (read_command_output ?verbose ?env cmd args)
+  with Command_not_found _ -> None
 
 let copy src dst =
   if (try Sys.is_directory src
@@ -463,7 +411,7 @@ let copy src dst =
   if Sys.file_exists dst
   then remove_file dst;
   mkdir (Filename.dirname dst);
-  command ~verbose:(verbose_for_base_commands ()) ["cp"; src; dst ]
+  sys_command "cp" [ src; dst ]
 
 let is_exec file =
   let stat = Unix.stat file in
@@ -479,8 +427,8 @@ let install ?exec src dst =
   let exec = match exec with
     | Some e -> e
     | None -> is_exec src in
-  command ("install" :: "-m" :: (if exec then "0755" else "0644") ::
-     [ src; dst ])
+  sys_command "install"
+    ("-m" :: (if exec then "0755" else "0644") :: src :: dst :: [])
 
 module Tar = struct
 
@@ -513,7 +461,7 @@ module Tar = struct
 
   let extract_function file =
     let command c dir =
-      command [ "tar" ; Printf.sprintf "xf%c" c ; file; "-C" ; dir ] in
+      sys_command "tar" [ Printf.sprintf "xf%c" c ; file; "-C" ; dir ] in
 
     let ext =
       List.fold_left
@@ -538,7 +486,7 @@ module Zip = struct
   let is_archive f = Filename.check_suffix f "zip"
 
   let extract_function file =
-    Some (fun dir -> command [ "unzip" ; file; "-d"; dir ])
+    Some (fun dir -> sys_command "unzip" [file; "-d"; dir ])
 end
 
 let is_tar_archive = Tar.is_archive
@@ -558,7 +506,7 @@ let extract file dst =
       match directories_strict tmp_dir with
       | [x] ->
         mkdir (Filename.dirname dst);
-        command [ "mv"; x; dst]
+        sys_command "mv" [x; dst]
       | _   ->
         internal_error "The archive %S contains multiple root directories."
           file
@@ -626,7 +574,7 @@ let funlock (fd,file) =
   log "Lock released on %s" file
 
 let ocaml_version = lazy (
-  match read_command_output_opt ~verbose:false [ "ocamlc" ; "-version" ] with
+  match read_command_output_opt ~verbose:false "ocamlc" ["-version"] with
   | Some (h::_) ->
     let version = OpamMisc.strip h in
     log "ocamlc version: %s" version;
@@ -653,7 +601,7 @@ let ocaml_opt_available = lazy (exists_alongside_ocamlc "ocamlc.opt")
 let ocaml_native_available = lazy (exists_alongside_ocamlc "ocamlopt")
 let ocaml_natdynlink_available = lazy (
   match
-    read_command_output_opt ~verbose:false [ "ocamlc"; "-where" ]
+    read_command_output_opt ~verbose:false "ocamlc" ["-where"]
   with
   | Some (h::_) ->
     let libdir = OpamMisc.strip h in
@@ -662,17 +610,16 @@ let ocaml_natdynlink_available = lazy (
 )
 
 (* Reset the path to get the system compiler *)
-let system command = lazy (
+let system command args = lazy (
   let env = Lazy.force reset_env in
-  match read_command_output_opt ~verbose:false ~env command with
-  | None        -> None
+  match read_command_output_opt ~verbose:false ~env command args with
   | Some (h::_) -> Some (OpamMisc.strip h)
-  | Some ([])   -> internal_error "%S is empty." (String.concat " " command)
+  | _ -> None
 )
 
-let system_ocamlc_where = system [ "ocamlc"; "-where" ]
+let system_ocamlc_where = system "ocamlc" ["-where"]
 
-let system_ocamlc_version = system [ "ocamlc"; "-version" ]
+let system_ocamlc_version = system "ocamlc" ["-version"]
 
 let choose_download_tool () =
   match !OpamGlobals.download_tool with
@@ -786,7 +733,8 @@ let patch p =
         | Other _               -> [ "--dry-run" ]
       else [] in
     let verbose = if dryrun then Some false else None in
-    command ?verbose ("patch" :: ("-p" ^ string_of_int n) :: "-i" :: p :: opts) in
+    sys_command ?verbose "patch" (("-p" ^ string_of_int n) :: "-i" :: p :: opts)
+  in
   let rec aux n =
     if n = max_trying then
       internal_error "Patch %s does not apply." p

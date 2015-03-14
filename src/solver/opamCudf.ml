@@ -535,12 +535,17 @@ let dose_solver_callback ~criteria (_,universe,_ as cudf) =
       Cudf_printer.pp_cudf oc cudf;
       close_out oc
     in
-    OpamSystem.command
-      ~verbose:(!OpamGlobals.debug_level >= 2)
-      (OpamGlobals.external_solver
-         ~input:(OpamFilename.to_string solver_in)
-         ~output:(OpamFilename.to_string solver_out)
-         ~criteria);
+    let solver,args =
+      match
+        OpamGlobals.external_solver
+          ~input:(OpamFilename.to_string solver_in)
+          ~output:(OpamFilename.to_string solver_out)
+          ~criteria
+      with
+      | solver::args -> solver, args
+      | [] -> raise (Common.CudfSolver.Error "Empty solver command")
+    in
+    OpamSystem.sys_command ~verbose:(!OpamGlobals.debug_level >= 2) solver args;
     OpamFilename.remove solver_in;
     if not (OpamFilename.exists solver_out) then
       raise (Common.CudfSolver.Error "no output")
@@ -576,7 +581,7 @@ let check_cudf_version =
         (* Run with closed stdin to workaround bug in some solver scripts *)
         match
           OpamSystem.read_command_output ~verbose:false ~allow_stdin:false
-            [external_solver_name (); "-v"]
+            (external_solver_name ()) ["-v"]
         with
         | [] ->
           log "No response from 'solver -v', using compat criteria";

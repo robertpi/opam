@@ -154,33 +154,21 @@ val make_command:
   ?check_existence:bool ->
   string -> string list -> OpamProcess.command
 
-(** OLD COMMAND API, DEPRECATED *)
-
-(** a command is a list of words *)
-type command = string list
-
 (** Test whether a command exists in the environment. *)
 val command_exists: ?env:string array -> ?dir:string -> string -> bool
 
-(** [command cmd] executes the command [cmd] in the correct OPAM
-    environment. *)
-val command: ?verbose:bool -> ?env:string array -> ?name:string ->
-  ?metadata:(string * string) list -> ?allow_stdin:bool ->
-  command -> unit
-
-(** [commands cmds] executes the commands [cmds] in the correct OPAM
-    environment. It stops whenever one command fails unless [keep_going] is set
-    to [true]. In this case, the first error is re-raised at the end. *)
-val commands: ?verbose:bool -> ?env:string array -> ?name:string ->
-  ?metadata:(string * string) list -> ?keep_going:bool -> command list -> unit
+(** Quick wrapper around [make_command; OpamProcess.Job.run] for system
+    commands. May raise [Process_error]. Default verbosity is based on
+    [verbose_for_base_commands] *)
+val sys_command: ?verbose:bool -> ?dir:string -> string -> string list -> unit
 
 (** [read_command_output cmd] executes the command [cmd] in the
     correct OPAM environment and return the lines from stdout if the command
     exists normally. If the command does not exist or if the command exited
     with a non-empty exit-code, throw an error. *)
 val read_command_output: ?verbose:bool -> ?env:string array ->
-  ?metadata:(string * string) list ->  ?allow_stdin:bool ->
-  command -> string list
+  ?metadata:(string * string) list ->  ?allow_stdin:bool -> ?dir:string ->
+  string -> string list -> string list
 
 (** END *)
 

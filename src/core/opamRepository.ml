@@ -357,15 +357,13 @@ let make_archive ?(gener_digest=false) repo prefix nv =
     ) else
       OpamFilename.Set.empty in
 
-    (* Finally create the final archive *)
+  (* Finally create the full archive *)
   let create_archive files extract_root =
     if not (OpamFilename.Set.is_empty files) || OpamFilename.exists url_file then (
       OpamGlobals.msg "Creating %s.\n" (OpamFilename.to_string archive);
-      OpamFilename.exec extract_root [
-        [ "tar" ; "czf" ;
-          OpamFilename.to_string archive ;
-          OpamPackage.to_string nv ]
-      ];
+      OpamSystem.sys_command ~dir:(OpamFilename.Dir.to_string extract_root)
+        "tar"
+        [ "czf" ; OpamFilename.to_string archive ; OpamPackage.to_string nv ];
       Some archive
     ) else
       None in

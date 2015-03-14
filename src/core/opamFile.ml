@@ -1446,9 +1446,9 @@ module X = struct
         let from_git = try
             match
               OpamSystem.read_command_output
-                ["git"; "config"; "--get"; "user.name"],
+                "git" ["config"; "--get"; "user.name"],
               OpamSystem.read_command_output
-                ["git"; "config"; "--get"; "user.email"]
+                "git" ["config"; "--get"; "user.email"]
             with
             | [name], [email] ->
               Some [Printf.sprintf "%s <%s>" name email]

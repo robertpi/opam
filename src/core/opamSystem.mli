@@ -170,8 +170,6 @@ val read_command_output: ?verbose:bool -> ?env:string array ->
   ?metadata:(string * string) list ->  ?allow_stdin:bool -> ?dir:string ->
   string -> string list -> string list
 
-(** END *)
-
 (** Test whether the file is an archive, by looking as its extension *)
 val is_tar_archive: string -> bool
 
@@ -205,8 +203,8 @@ val funlock: lock -> unit
 val download: overwrite:bool -> ?compress:bool ->
   filename:string -> dst:string -> string OpamProcess.job
 
-(** Apply a patch file in the current directory. *)
-val patch: string -> unit
+(** Apply a patch file. *)
+val patch: dir:string -> string -> unit
 
 (** Create a tempory file in {i ~/.opam/logs/<name>XXX} *)
 val temp_file: ?dir:string -> string -> string

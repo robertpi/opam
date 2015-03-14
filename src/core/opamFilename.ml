@@ -32,13 +32,55 @@ module Dir = struct
           (OpamMisc.remove_prefix ~prefix:("~"^Filename.dir_sep) dirname)
       else dirname
     in
-    OpamSystem.real_path dirname
+    OpamSystem.real_path ((* FilePath.readink *) dirname)
 
   let to_string dirname = dirname
 
 end
 
 let raw_dir s = s
+
+let (/) d1 s2 =
+  let s1 = Dir.to_string d1 in
+  raw_dir (Filename.concat s1 s2)
+
+type t = {
+  dirname:  Dir.t;
+  basename: Base.t;
+}
+
+let dirname t = t.dirname
+
+let basename t = t.basename
+
+let create dirname basename =
+  let b1 = Filename.dirname (Base.to_string basename) in
+  let b2 = Base.of_string (Filename.basename (Base.to_string basename)) in
+  if basename = b2 then
+    { dirname; basename }
+  else
+    { dirname = dirname / b1; basename = b2 }
+
+let of_basename basename =
+  let dirname = Dir.of_string "." in
+  { dirname; basename }
+
+let raw str =
+  let dirname = raw_dir (Filename.dirname str) in
+  let basename = Base.of_string (Filename.basename str) in
+  create dirname basename
+
+let to_string t =
+  Filename.concat (Dir.to_string t.dirname) (Base.to_string t.basename)
+
+let of_string s =
+  let dirname = Filename.dirname s in
+  let basename = Filename.basename s in
+  {
+    dirname  = Dir.of_string dirname;
+    basename = Base.of_string basename;
+  }
+
 
 (* Pure wrappers over OpamSystem *)
 
@@ -70,135 +112,14 @@ let in_dir dirname fn = OpamSystem.in_dir dirname fn
 let move_dir ~src ~dst =
   OpamSystem.sys_command "mv" [Dir.to_string src; Dir.to_string dst ]
 
-
-(* Almost pure wrappers over OpamSystem *)
-
-let cleandir dirname =
-  log "cleandir %a" (slog Dir.to_string) dirname;
-  OpamSystem.remove (Dir.to_string dirname);
-  mkdir dirname
-
-
-let cwd () =
-  Dir.of_string (Unix.getcwd ())
-
-
-let env_of_list l = Array.of_list (List.rev_map (fun (k,v) -> k^"="^v) l)
-
-let exists_dir dirname =
-  try (Unix.stat (Dir.to_string dirname)).Unix.st_kind = Unix.S_DIR
-  with Unix.Unix_error _ -> false
-
-let copy_dir ~src ~dst =
-  if exists_dir dst then
-    OpamSystem.internal_error
-      "Cannot create %s as the directory already exists." (Dir.to_string dst);
-  OpamSystem.sys_command "cp" ["-PR"; Dir.to_string src; Dir.to_string dst]
-
-let link_dir ~src ~dst =
-  if exists_dir dst then
-    OpamSystem.internal_error "Cannot link: %s already exists." (Dir.to_string dst)
-  else (
-    mkdir (Filename.dirname dst);
-    OpamSystem.link (Dir.to_string src) (Dir.to_string dst)
-  )
-
-let basename_dir dirname =
-  Base.of_string (Filename.basename (Dir.to_string dirname))
-
-let dirname_dir dirname =
-  Dir.to_string (Filename.dirname (Dir.of_string dirname))
-
-let to_list_dir dir =
-  let base d = Dir.of_string (Filename.basename (Dir.to_string d)) in
-  let rec aux acc dir =
-    let d = dirname_dir dir in
-    if d <> dir then aux (base dir :: acc) d
-    else base dir :: acc in
-  aux [] dir
-
-let (/) d1 s2 =
-  let s1 = Dir.to_string d1 in
-  raw_dir (Filename.concat s1 s2)
-
-type t = {
-  dirname:  Dir.t;
-  basename: Base.t;
-}
-
-let create dirname basename =
-  let b1 = Filename.dirname (Base.to_string basename) in
-  let b2 = Base.of_string (Filename.basename (Base.to_string basename)) in
-  if basename = b2 then
-    { dirname; basename }
-  else
-    { dirname = dirname / b1; basename = b2 }
-
-let of_basename basename =
-  let dirname = Dir.of_string "." in
-  { dirname; basename }
-
-let raw str =
-  let dirname = raw_dir (Filename.dirname str) in
-  let basename = Base.of_string (Filename.basename str) in
-  create dirname basename
-
-let to_string t =
-  Filename.concat (Dir.to_string t.dirname) (Base.to_string t.basename)
-
-let digest t =
-  Digest.to_hex (Digest.file (to_string t))
-
-let touch t =
-  OpamSystem.write (to_string t) ""
-
-let chmod t p =
-  Unix.chmod (to_string t) p
-
-let of_string s =
-  let dirname = Filename.dirname s in
-  let basename = Filename.basename s in
-  {
-    dirname  = Dir.of_string dirname;
-    basename = Base.of_string basename;
-  }
-
-let dirname t = t.dirname
-
-let basename t = t.basename
-
 let read filename =
   OpamSystem.read (to_string filename)
-
-let open_in filename =
-  try open_in (to_string filename)
-  with Sys_error _ -> raise (OpamSystem.File_not_found (to_string filename))
-
-let open_out filename =
-  try open_out (to_string filename)
-  with Sys_error _ -> raise (OpamSystem.File_not_found (to_string filename))
 
 let write filename raw =
   OpamSystem.write (to_string filename) raw
 
 let remove filename =
   OpamSystem.remove_file (to_string filename)
-
-let exists filename =
-  try (Unix.stat (to_string filename)).Unix.st_kind = Unix.S_REG
-  with Unix.Unix_error _ -> false
-
-let with_contents fn filename =
-  fn (read filename)
-
-let check_suffix filename s =
-  Filename.check_suffix (to_string filename) s
-
-let add_extension filename suffix =
-  of_string ((to_string filename) ^ "." ^ suffix)
-
-let chop_extension filename =
-  of_string (Filename.chop_extension (to_string filename))
 
 let rec_files d =
   let fs = OpamSystem.rec_files (Dir.to_string d) in
@@ -221,12 +142,119 @@ let move ~src ~dst =
 let link ~src ~dst =
   if src <> dst then OpamSystem.link (to_string src) (to_string dst)
 
+let extract filename dirname =
+  OpamSystem.extract (to_string filename) (Dir.to_string dirname)
+
+let extract_in filename dirname =
+  OpamSystem.extract_in (to_string filename) (Dir.to_string dirname)
+
+let patch filename dirname =
+  OpamSystem.patch ~dir:(Dir.to_string dirname) (to_string filename)
+
+(* Almost pure wrappers over OpamSystem *)
+
+let cleandir dirname =
+  log "cleandir %a" (slog Dir.to_string) dirname;
+  OpamSystem.remove (Dir.to_string dirname);
+  mkdir dirname
+
+let exists_dir dirname =
+  try (Unix.stat (Dir.to_string dirname)).Unix.st_kind = Unix.S_DIR
+  with Unix.Unix_error _ -> false
+
+let copy_dir ~src ~dst =
+  if exists_dir dst then
+    OpamSystem.internal_error
+      "Cannot create %s as the directory already exists." (Dir.to_string dst);
+  OpamSystem.sys_command "cp" ["-PR"; Dir.to_string src; Dir.to_string dst]
+
+let link_dir ~src ~dst =
+  if exists_dir dst then
+    OpamSystem.internal_error "Cannot link: %s already exists." (Dir.to_string dst)
+  else (
+    mkdir (Filename.dirname dst);
+    OpamSystem.link (Dir.to_string src) (Dir.to_string dst)
+  )
+
+let exists filename =
+  try (Unix.stat (to_string filename)).Unix.st_kind = Unix.S_REG
+  with Unix.Unix_error _ -> false
+
 let readlink src =
   if exists src then
     try of_string (Unix.readlink (to_string src))
     with Unix.Unix_error _ -> src
   else
     OpamSystem.internal_error "%s does not exist." (to_string src)
+
+let download ~overwrite ?compress filename dirname =
+  mkdir dirname;
+  let dst = to_string (create dirname (basename filename)) in
+  OpamSystem.download ~overwrite ?compress
+    ~filename:(to_string filename) ~dst
+  @@+ fun file -> Done (of_string file)
+
+let download_as ~overwrite ?(compress=false) filename dest =
+  mkdir (dirname dest);
+  OpamSystem.download ~overwrite ~compress
+    ~filename:(to_string filename) ~dst:(to_string dest)
+  @@+ fun file ->
+  assert (file = to_string dest);
+  Done ()
+
+
+
+
+let cwd () =
+  Dir.of_string (Unix.getcwd ())
+
+
+let env_of_list l = Array.of_list (List.rev_map (fun (k,v) -> k^"="^v) l)
+
+
+let basename_dir dirname =
+  Base.of_string (Filename.basename (Dir.to_string dirname))
+
+let dirname_dir dirname =
+  Dir.to_string (Filename.dirname (Dir.of_string dirname))
+
+let to_list_dir dir =
+  let base d = Dir.of_string (Filename.basename (Dir.to_string d)) in
+  let rec aux acc dir =
+    let d = dirname_dir dir in
+    if d <> dir then aux (base dir :: acc) d
+    else base dir :: acc in
+  aux [] dir
+
+let digest t =
+  Digest.to_hex (Digest.file (to_string t))
+
+let touch t =
+  OpamSystem.write (to_string t) ""
+
+let chmod t p =
+  Unix.chmod (to_string t) p
+
+let open_in filename =
+  try open_in (to_string filename)
+  with Sys_error _ -> raise (OpamSystem.File_not_found (to_string filename))
+
+let open_out filename =
+  try open_out (to_string filename)
+  with Sys_error _ -> raise (OpamSystem.File_not_found (to_string filename))
+
+
+let with_contents fn filename =
+  fn (read filename)
+
+let check_suffix filename s =
+  Filename.check_suffix (to_string filename) s
+
+let add_extension filename suffix =
+  of_string ((to_string filename) ^ "." ^ suffix)
+
+let chop_extension filename =
+  of_string (Filename.chop_extension (to_string filename))
 
 let is_symlink src =
   try
@@ -264,11 +292,6 @@ let copy_in ?root = process_in ?root copy
 
 let link_in = process_in link
 
-let extract filename dirname =
-  OpamSystem.extract (to_string filename) (Dir.to_string dirname)
-
-let extract_in filename dirname =
-  OpamSystem.extract_in (to_string filename) (Dir.to_string dirname)
 
 type generic_file =
   | D of Dir.t
@@ -289,6 +312,7 @@ let extract_generic_file filename dirname =
       copy_dir ~src:d ~dst:dirname
     )
 
+
 let ends_with suffix filename =
   OpamMisc.ends_with ~suffix (to_string filename)
 
@@ -297,23 +321,6 @@ let remove_suffix suffix filename =
   let filename = to_string filename in
   OpamMisc.remove_suffix ~suffix filename
 
-let download ~overwrite ?compress filename dirname =
-  mkdir dirname;
-  let dst = to_string (create dirname (basename filename)) in
-  OpamSystem.download ~overwrite ?compress
-    ~filename:(to_string filename) ~dst
-  @@+ fun file -> Done (of_string file)
-
-let download_as ~overwrite ?(compress=false) filename dest =
-  mkdir (dirname dest);
-  OpamSystem.download ~overwrite ~compress
-    ~filename:(to_string filename) ~dst:(to_string dest)
-  @@+ fun file ->
-  assert (file = to_string dest);
-  Done ()
-
-let patch filename dirname =
-  in_dir dirname (fun () -> OpamSystem.patch (to_string filename))
 
 let with_flock ?read file f x =
   let lock = OpamSystem.flock ?read (to_string file) in

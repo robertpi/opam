@@ -718,7 +718,7 @@ let download ~overwrite ?compress ~filename:src ~dst:dst =
   ) else
     really_download ~overwrite ?compress ~src ~dst
 
-let patch p =
+let patch ~dir p =
   let max_trying = 5 in
   if not (Sys.file_exists p) then
     (OpamGlobals.error "Patch file %S not found." p;
@@ -733,7 +733,8 @@ let patch p =
         | Other _               -> [ "--dry-run" ]
       else [] in
     let verbose = if dryrun then Some false else None in
-    sys_command ?verbose "patch" (("-p" ^ string_of_int n) :: "-i" :: p :: opts)
+    sys_command ?verbose ~dir
+      "patch" (("-p" ^ string_of_int n) :: "-i" :: p :: opts)
   in
   let rec aux n =
     if n = max_trying then

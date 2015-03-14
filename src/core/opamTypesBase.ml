@@ -41,9 +41,13 @@ let string_of_address = function
   | url, Some c -> Printf.sprintf "%s#%s" url c
 
 let address_of_string str =
-  match OpamMisc.cut_at str '#' with
-  | None       -> OpamSystem.real_path str, None
-  | Some (a,c) -> OpamSystem.real_path a, Some c
+  let base,branch = match OpamMisc.cut_at str '#' with
+    | None       -> str, None
+    | Some (a,c) -> a, Some c
+  in
+  if OpamFilename.exists base then
+    OpamSystem.real_path base, branch
+  else base, branch
 
 let guess_version_control dir =
   let open OpamFilename in

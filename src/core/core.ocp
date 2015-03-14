@@ -41,6 +41,7 @@ begin library "opam-core"
     "re.glob"
     "re.str"
     "jsonm"
+    "fileutils"
   ]
 
 end

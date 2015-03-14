@@ -32,7 +32,7 @@ module Dir = struct
           (OpamMisc.remove_prefix ~prefix:("~"^Filename.dir_sep) dirname)
       else dirname
     in
-    OpamSystem.real_path ((* FilePath.readink *) dirname)
+    OpamSystem.real_path dirname
 
   let to_string dirname = dirname
 
@@ -40,47 +40,26 @@ end
 
 let raw_dir s = s
 
-let (/) d1 s2 =
-  let s1 = Dir.to_string d1 in
-  raw_dir (Filename.concat s1 s2)
+module FP = FilePath
+module F = FileUtil
 
-type t = {
-  dirname:  Dir.t;
-  basename: Base.t;
-}
+let (/) s1 s2 = FP.concat s1 s2
 
-let dirname t = t.dirname
+type t = FP.filename
 
-let basename t = t.basename
+let dirname t = FP.dirname t
 
-let create dirname basename =
-  let b1 = Filename.dirname (Base.to_string basename) in
-  let b2 = Base.of_string (Filename.basename (Base.to_string basename)) in
-  if basename = b2 then
-    { dirname; basename }
-  else
-    { dirname = dirname / b1; basename = b2 }
+let basename t = FP.basename t
 
-let of_basename basename =
-  let dirname = Dir.of_string "." in
-  { dirname; basename }
+let create dirname basename = OpamSystem.real_path (dirname / basename)
 
-let raw str =
-  let dirname = raw_dir (Filename.dirname str) in
-  let basename = Base.of_string (Filename.basename str) in
-  create dirname basename
+let of_basename basename = FP.reduce (F.pwd () / basename)
 
-let to_string t =
-  Filename.concat (Dir.to_string t.dirname) (Base.to_string t.basename)
+let raw str = str
 
-let of_string s =
-  let dirname = Filename.dirname s in
-  let basename = Filename.basename s in
-  {
-    dirname  = Dir.of_string dirname;
-    basename = Base.of_string basename;
-  }
+let to_string t = t
 
+let of_string s = OpamSystem.real_path s
 
 (* Pure wrappers over OpamSystem *)
 
@@ -110,7 +89,7 @@ let dir_is_empty d =
 let in_dir dirname fn = OpamSystem.in_dir dirname fn
 
 let move_dir ~src ~dst =
-  OpamSystem.sys_command "mv" [Dir.to_string src; Dir.to_string dst ]
+  OpamSystem.mv (Dir.to_string src) (Dir.to_string dst)
 
 let read filename =
   OpamSystem.read (to_string filename)
@@ -137,7 +116,7 @@ let install ?exec ~src ~dst () =
 
 let move ~src ~dst =
   if src <> dst then
-    OpamSystem.sys_command "mv" [to_string src; to_string dst]
+    OpamSystem.mv (to_string src) (to_string dst)
 
 let link ~src ~dst =
   if src <> dst then OpamSystem.link (to_string src) (to_string dst)
@@ -272,11 +251,7 @@ let starts_with dirname filename =
   OpamMisc.starts_with ~prefix:(Dir.to_string dirname) (to_string filename)
 
 let remove_prefix prefix filename =
-  let prefix =
-    let str = Dir.to_string prefix in
-    if str = "" then "" else Filename.concat str "" in
-  let filename = to_string filename in
-  OpamMisc.remove_prefix ~prefix filename
+  FP.make_relative prefix filename
 
 let process_in ?root fn src dst =
   let basename = match root with

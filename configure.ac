@@ -67,6 +67,7 @@ AC_CHECK_OCAML_PKG([ocamlgraph])
 AC_CHECK_OCAML_PKG([cudf])
 AC_CHECK_OCAML_PKG(dose3,dose)
 AC_CHECK_OCAML_PKG([jsonm])
+AC_CHECK_OCAML_PKG([fileutils])
 
 dnl echo
 dnl echo "extlib........................ ${OCAML_PKG_extlib}"

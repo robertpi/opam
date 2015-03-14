@@ -39,54 +39,127 @@ let raise_on_process_error r =
 
 let command_not_found cmd =
   raise (Command_not_found cmd)
-
+(*
 module Sys2 = struct
   (* same as [Sys.is_directory] except for symlinks, which returns always [false]. *)
   let is_directory file =
     try Unix.( (lstat file).st_kind = S_DIR )
     with Unix.Unix_error _ as e -> raise (Sys_error (Printexc.to_string e))
 end
+*)
 
-let (/) = Filename.concat
+(* - File paths handling and base operations - *)
+
+module FP = FilePath
+module F = FileUtil
+
+type filename = FP.filename
+type dirname = FP.filename
+
+let (/) = FilePath.concat
 
 (* Separator for the PATH variables *)
 let path_sep = match OpamGlobals.os () with
   | OpamGlobals.Win32 -> ';'
   | OpamGlobals.Cygwin | _ -> ':'
 
+
+let mkdir dir =
+  log "mkdir %s" dir;
+  F.mkdir ~parent:true dir
+
+let remove_dir dir =
+  log "rmdir %s" dir;
+  F.rm ~recurse:true [dir]
+
+let remove_file file =
+  log "rm %s" file;
+  F.rm [file]
+
+let remove file = F.rm ~recurse:true [file]
+
+let list filter dir =
+  try F.filter filter (F.ls dir)
+  with Sys_error _ -> []
+
+let rec_files dir =
+  let rec aux acc dir =
+    List.fold_left (fun acc f ->
+        if F.test F.Is_dir f then aux acc f
+        else f::acc)
+      acc (list F.True dir)
+  in
+  List.sort FP.compare (aux [] dir)
+
+let files dir = list (F.Not F.Is_dir) dir
+
+let rec_dirs dir =
+  let rec aux acc dir =
+    List.fold_left (fun acc f ->
+        if F.test F.Is_dir f then aux (f::acc) f
+        else acc)
+      acc (list F.True dir)
+  in
+  List.sort FP.compare
+    (List.fold_left aux [] (list F.True dir))
+
+let dirs dir =
+  try list F.Is_dir dir with Sys_error _ -> []
+
+let dir_is_empty dir =
+  try list F.True dir <> [] with F.FileDoesntExist _ -> false
+
+let real_path p =
+  FilePath.reduce ~no_symlink:true (FilePath.make_absolute (FileUtil.pwd ()) p)
+
+let mv src dst =
+  mkdir (FP.dirname dst);
+  F.mv src dst
+
+let copy src dst =
+  mkdir (FP.dirname dst);
+  F.cp ~follow:F.Follow ~recurse:false [src] dst
+
+let is_exec file = F.test (F.And (F.Is_file, F.Is_exec)) file
+
+let install ?exec src dst =
+  if F.test F.Is_dir src then
+    internal_error "Cannot install %s: it is a directory." src;
+  if F.test F.Is_dir dst then
+    internal_error "Cannot install to %s: it is a directory." dst;
+  let exec = match exec with Some e -> e | None -> F.test F.Is_exec src in
+  copy src dst;
+  Unix.chmod dst (if exec then 0o755 else 0o644)
+
+let link src dst =
+  if F.test F.Exists src then
+    if OpamGlobals.(os () = Win32) then
+      copy src dst
+    else
+      (mkdir (Filename.dirname dst);
+       if F.test F.Exists dst then
+         remove_file dst;
+       try
+         log "ln -s %s %s" src dst;
+         Unix.symlink src dst
+       with Unix.Unix_error (Unix.EXDEV, _, _) ->
+         (* Fall back to copy if hard links are not supported *)
+         copy src dst)
+  else
+    internal_error "link: %s does not exist." src
+
+
+(* - Temp dir and file handling - *)
+
 let temp_basename prefix =
   Printf.sprintf "%s-%d-%06x" prefix (Unix.getpid ()) (Random.int 0xFFFFFF)
 
 let rec mk_temp_dir () =
   let s = Filename.get_temp_dir_name () / temp_basename "opam" in
-  if Sys.file_exists s then
+  if F.test F.Exists s then
     mk_temp_dir ()
   else
     s
-
-let safe_mkdir dir =
-  try
-    log "mkdir %s" dir;
-    Unix.mkdir dir 0o755
-  with
-    Unix.Unix_error(Unix.EEXIST,_,_) -> ()
-
-let mkdir dir =
-  let rec aux dir =
-    if not (Sys.file_exists dir) then begin
-      aux (Filename.dirname dir);
-      safe_mkdir dir;
-    end in
-  aux dir
-
-(* XXX: won't work on windows *)
-let remove_dir dir =
-  log "rmdir %s" dir;
-  if Sys.file_exists dir then (
-    let err = Sys.command (Printf.sprintf "rm -rf %s" dir) in
-      if err <> 0 then
-        internal_error "Cannot remove %s (error %d)." dir err
-  )
 
 let temp_files = Hashtbl.create 1024
 let check_remove_temp_dir = ref true
@@ -109,16 +182,47 @@ let rec temp_file ?dir prefix =
     file
   )
 
-let remove_file file =
-  if
-    try ignore (Unix.lstat file); true with Unix.Unix_error _ -> false
-  then (
-    try
-      log "rm %s" file;
-      Unix.unlink file
-    with Unix.Unix_error _ as e ->
-      internal_error "Cannot remove %s (%s)." file (Printexc.to_string e)
-  )
+let with_tmp_dir fn =
+  let dir = mk_temp_dir () in
+  try
+    mkdir dir;
+    let e = fn dir in
+    remove_dir dir;
+    e
+  with e ->
+    remove_dir dir;
+    raise e
+
+let with_tmp_dir_job fjob =
+  let dir = mk_temp_dir () in
+  mkdir dir;
+  OpamProcess.Job.finally (fun () -> remove_dir dir) (fjob dir)
+
+
+(* XXX Deprecated: use ~dir argument of make_command instead *)
+let chdir dir =
+  try Unix.chdir dir
+  with Unix.Unix_error _ -> raise (File_not_found dir)
+let in_dir dir fn =
+  let reset_cwd =
+    let cwd =
+      try Some (Sys.getcwd ())
+      with Sys_error _ -> None in
+    fun () ->
+      match cwd with
+      | None     -> ()
+      | Some cwd -> try chdir cwd with File_not_found _ -> () in
+  chdir dir;
+  try
+    let r = fn () in
+    reset_cwd ();
+    r
+  with e ->
+    reset_cwd ();
+    raise e
+
+
+(* - I/O operations - *)
 
 let string_of_channel ic =
   let n = 32768 in
@@ -144,127 +248,14 @@ let read file =
   s
 
 let write file contents =
-  mkdir (Filename.dirname file);
+  mkdir (FP.dirname file);
   let oc =
     try open_out_bin file
     with Sys_error _ -> raise (File_not_found file) in
   output_string oc contents;
   close_out oc
 
-let chdir dir =
-  try Unix.chdir dir
-  with Unix.Unix_error _ -> raise (File_not_found dir)
-
-let in_dir dir fn =
-  let reset_cwd =
-    let cwd =
-      try Some (Sys.getcwd ())
-      with Sys_error _ -> None in
-    fun () ->
-      match cwd with
-      | None     -> ()
-      | Some cwd -> try chdir cwd with File_not_found _ -> () in
-  chdir dir;
-  try
-    let r = fn () in
-    reset_cwd ();
-    r
-  with e ->
-    reset_cwd ();
-    raise e
-
-let list kind dir =
-  try
-    in_dir dir (fun () ->
-      let d = Sys.readdir (Sys.getcwd ()) in
-      let d = Array.to_list d in
-      let l = List.filter kind d in
-      List.map (Filename.concat dir) (List.sort compare l)
-    )
-  with File_not_found _ -> []
-
-let files_with_links =
-  list (fun f -> try not (Sys.is_directory f) with Sys_error _ -> true)
-
-let files_all_not_dir =
-  list (fun f -> try not (Sys2.is_directory f) with Sys_error _ -> true)
-
-let directories_strict =
-  list (fun f -> try Sys2.is_directory f with Sys_error _ -> false)
-
-let directories_with_links =
-  list (fun f -> try Sys.is_directory f with Sys_error _ -> false)
-
-let rec_files dir =
-  let rec aux accu dir =
-    let d = directories_with_links dir in
-    let f = files_with_links dir in
-    List.fold_left aux (f @ accu) d in
-  aux [] dir
-
-let files dir =
-  files_with_links dir
-
-let rec_dirs dir =
-  let rec aux accu dir =
-    let d = directories_with_links dir in
-    List.fold_left aux (d @ accu) d in
-  aux [] dir
-
-let dirs dir =
-  directories_with_links dir
-
-let dir_is_empty dir =
-  try in_dir dir (fun () -> Sys.readdir (Sys.getcwd ()) = [||])
-  with File_not_found _ -> false
-
-let with_tmp_dir fn =
-  let dir = mk_temp_dir () in
-  try
-    mkdir dir;
-    let e = fn dir in
-    remove_dir dir;
-    e
-  with e ->
-    remove_dir dir;
-    raise e
-
-let with_tmp_dir_job fjob =
-  let dir = mk_temp_dir () in
-  mkdir dir;
-  OpamProcess.Job.finally (fun () -> remove_dir dir) (fjob dir)
-
-let remove file =
-  if (try Sys2.is_directory file with Sys_error _ -> false) then
-    remove_dir file
-  else
-    remove_file file
-
-let getchdir s =
-  let p =
-    try Sys.getcwd ()
-    with Sys_error _ ->
-      if Sys.file_exists !OpamGlobals.root_dir
-      then !OpamGlobals.root_dir
-      else Filename.get_temp_dir_name ()
-  in
-  chdir s;
-  p
-
-let normalize s =
-  getchdir (getchdir s)
-
-let real_path p =
-  if Filename.is_relative p then
-    match (try Some (Sys.is_directory p) with Sys_error _ -> None) with
-    | None -> p
-    | Some true -> normalize p
-    | Some false ->
-      let dir = normalize (Filename.dirname p) in
-      match Filename.basename p with
-      | "." -> dir
-      | base -> dir / base
-  else p
+(* - Environment variables - *)
 
 let default_env =
   Unix.environment ()
@@ -296,6 +287,8 @@ let env_var env var =
     else aux (i+1)
   in
   aux 0
+
+(* - Command handling, processes and jobs - *)
 
 let command_exists =
   let is_external_cmd name = Filename.basename name <> name in
@@ -402,34 +395,6 @@ let read_command_output_opt ?verbose ?env cmd args =
   try Some (read_command_output ?verbose ?env cmd args)
   with Command_not_found _ -> None
 
-let copy src dst =
-  if (try Sys.is_directory src
-      with Sys_error _ -> raise (File_not_found src))
-  then internal_error "Cannot copy %s: it is a directory." src;
-  if (try Sys.is_directory dst with Sys_error _ -> false)
-  then internal_error "Cannot copy to %s: it is a directory." dst;
-  if Sys.file_exists dst
-  then remove_file dst;
-  mkdir (Filename.dirname dst);
-  sys_command "cp" [ src; dst ]
-
-let is_exec file =
-  let stat = Unix.stat file in
-  stat.Unix.st_kind = Unix.S_REG &&
-  stat.Unix.st_perm land 0o111 <> 0
-
-let install ?exec src dst =
-  if Sys.is_directory src then
-    internal_error "Cannot install %s: it is a directory." src;
-  if (try Sys.is_directory dst with Sys_error _ -> false) then
-    internal_error "Cannot install to %s: it is a directory." dst;
-  mkdir (Filename.dirname dst);
-  let exec = match exec with
-    | Some e -> e
-    | None -> is_exec src in
-  sys_command "install"
-    ("-m" :: (if exec then "0755" else "0644") :: src :: dst :: [])
-
 module Tar = struct
 
   let extensions =
@@ -503,7 +468,7 @@ let extract file dst =
       f tmp_dir;
       if Sys.file_exists dst then
         internal_error "Extracting the archive will overwrite %s." dst;
-      match directories_strict tmp_dir with
+      match list (F.And (F.Is_dir, F.Not F.Is_link)) tmp_dir with
       | [x] ->
         mkdir (Filename.dirname dst);
         sys_command "mv" [x; dst]
@@ -518,20 +483,6 @@ let extract_in file dst =
   match Tar.extract_function file with
   | None   -> internal_error "%s is not a valid tar archive." file
   | Some f -> f dst
-
-let link src dst =
-  if Sys.file_exists src then (
-    mkdir (Filename.dirname dst);
-    if Sys.file_exists dst then
-      remove_file dst;
-    try
-      log "ln -s %s %s" src dst;
-      Unix.symlink src dst
-    with Unix.Unix_error (Unix.EXDEV, _, _) ->
-      (* Fall back to copy if hard links are not supported *)
-      copy src dst
-  ) else
-    internal_error "link: %s does not exist." src
 
 type lock = Unix.file_descr * string
 
@@ -584,18 +535,8 @@ let ocaml_version = lazy (
 )
 
 let exists_alongside_ocamlc name =
-  let path = try OpamMisc.getenv "PATH" with Not_found -> "" in
-  let path = OpamMisc.split path path_sep in
-  let ocamlc_dir =
-    List.fold_left (function
-        | None -> fun d ->
-          if Sys.file_exists (d/"ocamlc") then Some d else None
-        | s -> fun _ -> s)
-      None path
-  in
-  match ocamlc_dir with
-  | Some d -> Sys.file_exists (d / name)
-  | None -> false
+  try F.test F.Exists (FP.dirname (F.which "ocamlc") / name)
+  with Not_found -> false
 
 let ocaml_opt_available = lazy (exists_alongside_ocamlc "ocamlc.opt")
 let ocaml_native_available = lazy (exists_alongside_ocamlc "ocamlopt")
@@ -686,8 +627,10 @@ let really_download ~overwrite ?(compress=false) ~src ~dst =
   let download = (Lazy.force download_command) in
   let aux dir =
     download ~compress dir src @@+ fun () ->
-    match list (fun _ -> true) dir with
-      ( [] | _::_::_ ) ->
+    match list F.True dir with
+    | [] ->
+      internal_error "Downloaded file not found."
+    | _::_::_ ->
       internal_error "Too many downloaded files."
     | [filename] ->
       if Sys.file_exists dst then

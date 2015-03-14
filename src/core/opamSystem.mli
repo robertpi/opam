@@ -34,11 +34,14 @@ exception Internal_error of string
 (** Raise [Internal_error] *)
 val internal_error: ('a, unit, string, 'b) format4 -> 'a
 
+type dirname = string
+type filename = string
+
 (** [with_tmp_dir fn] executes [fn] in a tempory directory *)
-val with_tmp_dir: (string -> 'a) -> 'a
+val with_tmp_dir: (dirname -> 'a) -> 'a
 
 (** Runs a job with a temp dir that is cleaned up afterwards *)
-val with_tmp_dir_job: (string -> 'a OpamProcess.job) -> 'a OpamProcess.job
+val with_tmp_dir_job: (dirname -> 'a OpamProcess.job) -> 'a OpamProcess.job
 
 (** Returns true if the default verbose level for base commands (cp, mv, etc.)
     is reached *)
@@ -46,24 +49,26 @@ val verbose_for_base_commands: unit -> bool
 
 (** [copy src dst] copies [src] to [dst]. Remove [dst] before the copy
     if it is a link. *)
-val copy: string -> string -> unit
+val copy: filename -> filename -> unit
+
+val mv: filename -> filename -> unit
 
 (** [install ?exec src dst] copies file [src] as file [dst] using [install].
     If [exec], make the resulting file executable (otherwise, look at the
     permissions of the original file to decide). *)
-val install: ?exec:bool -> string -> string -> unit
+val install: ?exec:bool -> filename -> filename -> unit
 
 (** Checks if a file is an executable (regular file with execution
     permission) *)
-val is_exec: string -> bool
+val is_exec: filename -> bool
 
 (** [link src dst] links [src] to [dst]. Remove [dst] if it is a file,
     not a directory. *)
-val link: string -> string -> unit
+val link: filename -> filename -> unit
 
 (** [real_path p] returns the real path associated to [p]: [..] are
     expanded and relative paths become absolute. *)
-val real_path: string -> string
+val real_path: filename -> filename
 
 (** Return the contents of a channel. *)
 val string_of_channel: in_channel -> string
@@ -95,10 +100,6 @@ val chdir: string -> unit
 
 (** [in_dir dir fn] evaluates [fn] in the directory [dir] *)
 val in_dir: string -> (unit -> 'a) -> 'a
-
-(** [files_with_links dir] returns the files in the directory [dir].
-    Links simulating directory are ignored, others links are returned. *)
-val files_with_links: string -> string list
 
 (** [rec_files dir] returns the list of all files in [dir],
     recursively.
@@ -136,10 +137,6 @@ val system_ocamlc_where: string option Lazy.t
 
 (** Return the version of the system compiler *)
 val system_ocamlc_version: string option Lazy.t
-
-(** [directories_with_links dir] returns the directories in the directory [dir].
-    Links pointing to directory are also returned. *)
-val directories_with_links: string -> string list
 
 (** Make a comman suitable for OpamProcess.Job. if [verbose], is set,
     command and output will be displayed (at command end for the

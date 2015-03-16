@@ -1,6 +1,6 @@
 -include ../Makefile.config
 
-SRC_EXTS = extlib re cmdliner graph cudf dose uutf jsonm
+SRC_EXTS = extlib re cmdliner graph cudf dose uutf jsonm fileutils
 
 URL_extlib = http://ocaml-extlib.googlecode.com/files/extlib-1.5.3.tar.gz
 MD5_extlib = 3de5f4e0a95fda7b2f3819c4a655b17c
@@ -25,6 +25,9 @@ MD5_uutf = 708c0421e158b390c7cc341f37b40add
 
 URL_jsonm = http://erratique.ch/software/jsonm/releases/jsonm-0.9.1.tbz
 MD5_jsonm = 631a5dabdada83236c83056f60e42685
+
+URL_fileutils = http://forge.ocamlcore.org/frs/download.php/892/ocaml-fileutils-0.4.4.tar.gz
+MD5_fileutils = 1f43b9333358f47660318bfbe9ae68bf
 
 ARCHIVES = $(foreach lib,$(SRC_EXTS),$(notdir $(URL_$(lib))))
 lib_of = $(foreach lib,$(SRC_EXTS),$(if $(findstring $(1),$(URL_$(lib))),$(lib),,))
@@ -76,13 +79,13 @@ clean:
 	$(MAKE) -f $(OCAMLMAKEFILE) subprojs SUBTARGET=cleanup
 
 distclean:
-	rm -rf cudf extlib re graph dose cmdliner uutf jsonm
+	rm -rf cudf extlib re graph dose cmdliner uutf jsonm fileutils
 	rm -f depends.ocp
 	rm -f *.tar.gz *.tbz *.stamp
 	rm -f *.cm* *.o *.a
 	rm -rf lib
 
-LIB_EXTS = extlib re cmdliner graph cudf dose_common dose_debian dose_algo uutf jsonm
+LIB_EXTS = extlib re cmdliner graph cudf dose_common dose_debian dose_algo uutf jsonm fileutils
 
 inst_objs = cp $(1)/*.cm*i lib
 
@@ -101,6 +104,7 @@ copy: build
 	$(call inst_objs,dose/algo)
 	$(call inst_objs,uutf/src)
 	$(call inst_objs,jsonm/src)
+	$(call inst_objs,fileutils/src)
 	$(call inst_objs,.)
 
 # --
@@ -216,6 +220,17 @@ define PROJ_jsonm
   INCDIRS = uutf/src
 endef
 export PROJ_jsonm
+
+SRC_fileutils = FilePath_type.ml FileStringExt.ml ExtensionPath.ml		\
+CommonPath.ml MacOSPath.ml UnixPath.ml Win32Path.ml FilePath.ml FileUtil.ml	\
+FileUtilStr.ml
+
+define PROJ_fileutils
+  SOURCES = $(call addmli,fileutils/src,$(SRC_fileutils))
+  RESULT = fileutils
+  LIB_PACK_NAME =
+endef
+export PROJ_fileutils
 
 # --
 

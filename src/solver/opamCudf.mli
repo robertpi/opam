@@ -208,6 +208,14 @@ val cudf2opam: Cudf.package -> package
 val packages: Cudf.universe -> Cudf.package list
 
 (** {2 External solver} *)
+
+(** Generates a solver command (suitable for OpamGlobals.external_solver_ref)
+    from a string found in the environment, or from a config value if not
+    found *)
+val make_solver_command:
+  ?env:string -> ?config:(arg list) -> unit ->
+  (input:string -> output:string -> criteria:string -> string list)
+
 val external_solver_available: unit -> bool
 
 (** Runs a test to check the version of the optimisation criteria accepted by

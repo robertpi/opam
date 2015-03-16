@@ -454,6 +454,36 @@ let to_cudf univ req = (
     req_extra       = [] }
 )
 
+let make_solver_command ?env ?config () =
+  let cmd = match env with
+    | Some ("aspcud" | "packup" as s) -> [CIdent s, None]
+    | Some s ->
+      List.map (fun s -> CString s, None) (OpamMisc.split s ' ')
+    | None -> match config with
+      | Some f -> f
+      | None -> [CIdent OpamGlobals.default_external_solver, None]
+  in
+  let cmd = match cmd with
+    | [CIdent "aspcud", None] ->
+      List.map (fun s -> s, None)
+        [CString "aspcud"; CIdent "input"; CIdent "output"; CIdent "criteria"]
+    | [CIdent "packup", None] ->
+      List.map (fun s -> s, None)
+        [CString "packup"; CIdent "input"; CIdent "output";
+         CString "-u"; CIdent "criteria"]
+    | cmd -> cmd
+  in
+  fun ~input ~output ~criteria ->
+    OpamFilter.single_command (fun v ->
+        if OpamVariable.Full.package v <> OpamPackage.Name.global_config
+        then None else
+        match OpamVariable.to_string (OpamVariable.Full.variable v) with
+        | "input" -> Some (S input)
+        | "output" -> Some (S output)
+        | "criteria" -> Some (S criteria)
+        | _ -> None)
+      cmd
+
 let external_solver_name () =
   match OpamGlobals.external_solver ~input:"" ~output:"" ~criteria:"" with
   | cmd::_ -> cmd
@@ -468,7 +498,7 @@ let external_solver_exists =
          !OpamGlobals.env_external_solver <> None
       then
         OpamGlobals.error_and_exit
-          "Your configuration or environment specifies external solver %s, but \
+          "You specified external solver %s, but \
            it cannot be found. Fix your installation, your configuration or \
            use '--use-internal-solver'."
           name

@@ -1415,41 +1415,13 @@ let load_config root =
     List.map (fun s -> CString s, None) (OpamMisc.split s ' ')
   in
   (* Set some globals *)
-  let external_solver_command =
-    let cmd = match !OpamGlobals.env_external_solver with
-      | Some ("aspcud" | "packup" as s) -> [CIdent s, None]
-      | Some s -> command_of_string s
-      | None -> match OpamFile.Config.solver config with
-        | Some f ->
-          OpamGlobals.env_external_solver :=
-            Some (OpamMisc.sconcat_map " "
-                    (function (CIdent i,_) -> "%{"^i^"}%" | (CString s,_) -> s)
-                    f);
-          f
-        | None -> [CIdent OpamGlobals.default_external_solver, None]
-    in
-    let cmd = match cmd with
-      | [CIdent "aspcud", None] ->
-        List.map (fun s -> s, None)
-          [CString "aspcud"; CIdent "input"; CIdent "output"; CIdent "criteria"]
-      | [CIdent "packup", None] ->
-        List.map (fun s -> s, None)
-          [CString "packup"; CIdent "input"; CIdent "output";
-           CString "-u"; CIdent "criteria"]
-      | cmd -> cmd
-    in
-    fun ~input ~output ~criteria ->
-      OpamFilter.single_command (fun v ->
-          if not (is_global_conf v) then None else
-          match OpamVariable.to_string (OpamVariable.Full.variable v) with
-          | "input" -> Some (S input)
-          | "output" -> Some (S output)
-          | "criteria" -> Some (S criteria)
-          | _ -> None)
-        cmd
+  let solver_command =
+    OpamCudf.make_solver_command
+      ?env:!OpamGlobals.env_external_solver
+      ?config:(OpamFile.Config.solver config)
+      ()
   in
-
-  OpamGlobals.external_solver_ref := Some external_solver_command;
+  OpamGlobals.external_solver_ref := Some solver_command;
 
   let solver_prefs =
     let config_crit =

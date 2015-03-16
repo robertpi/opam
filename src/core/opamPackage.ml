@@ -183,7 +183,7 @@ let of_archive f =
 let list dir =
   log "list %a" (slog OpamFilename.Dir.to_string) dir;
   if OpamFilename.exists_dir dir then (
-    let files = OpamFilename.rec_files dir in
+    let files = OpamSystem.rec_files dir in
     List.fold_left (fun set f ->
         match of_filename f with
         | None   -> set
@@ -202,7 +202,7 @@ let list dir =
 let prefixes dir =
   log "prefixes %a" (slog OpamFilename.Dir.to_string) dir;
   if OpamFilename.exists_dir dir then (
-    let files = OpamFilename.rec_files dir in
+    let files = OpamSystem.rec_files dir in
     List.fold_left (fun map f ->
         match of_filename f with
         | None   -> map

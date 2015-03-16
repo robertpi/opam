@@ -2319,7 +2319,7 @@ module Make (F : F) = struct
   let write f v =
     let filename = OpamFilename.prettify f in
     let chrono = OpamGlobals.timer () in
-    OpamFilename.write f (F.to_string f v);
+    OpamSystem.write f (F.to_string f v);
     write_files := filename :: !write_files;
     log "Wrote %s in %.3fs" filename (chrono ())
 

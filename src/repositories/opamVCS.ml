@@ -76,7 +76,7 @@ module Make (VCS: VCS) = struct
       if diff then Done (Result repo.repo_root)
       else Done (Up_to_date repo.repo_root)
     else
-      (OpamFilename.mkdir repo.repo_root;
+      (OpamSystem.mkdir repo.repo_root;
        VCS.init repo @@+ fun () ->
        VCS.fetch repo @@+ fun () ->
        VCS.reset repo @@+ fun () ->

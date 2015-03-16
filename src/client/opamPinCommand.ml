@@ -25,8 +25,8 @@ let slog = OpamGlobals.slog
 let cleanup_dev_dirs t name =
   let packages = OpamPackage.packages_of_name t.packages name in
   OpamPackage.Set.iter (fun nv ->
-      OpamFilename.rmdir (OpamPath.Switch.build t.root t.switch nv);
-      OpamFilename.rmdir (OpamPath.Switch.dev_package t.root t.switch name);
+      OpamSystem.remove_dir (OpamPath.Switch.build t.root t.switch nv);
+      OpamSystem.remove_dir (OpamPath.Switch.dev_package t.root t.switch name);
     ) packages
 
 let edit t name =
@@ -59,7 +59,7 @@ let edit t name =
   if empty_opam && not (OpamFilename.exists temp_file) then
     OpamState.add_pinned_overlay ~template:true ?version t name;
   if not (OpamFilename.exists temp_file) then
-    OpamFilename.copy ~src:file ~dst:temp_file;
+    OpamSystem.copy file temp_file;
   let rec edit () =
     try
       ignore @@ Sys.command
@@ -115,7 +115,7 @@ let edit t name =
   match edit () with
   | None -> if empty_opam then raise Not_found else None
   | Some new_opam ->
-    OpamFilename.move ~src:temp_file ~dst:file;
+    OpamSystem.mv temp_file file;
     OpamGlobals.msg "You can edit this file again with \"opam pin edit %s\"\n"
       (OpamPackage.Name.to_string name);
     if Some new_opam = orig_opam then (
@@ -138,7 +138,7 @@ let edit t name =
         in
         if OpamGlobals.confirm "Save the new opam file back to %S ?"
             (OpamFilename.to_string src_opam) then
-          OpamFilename.copy ~src:file ~dst:src_opam
+          OpamSystem.copy file src_opam
       | _ -> ()
     in
     match installed_nv with
@@ -197,7 +197,7 @@ let pin name ?version pin_option =
           (string_of_pin_kind (kind_of_pin_option current))
           (string_of_pin_option current);
       if OpamGlobals.confirm "Proceed ?" then
-        (OpamFilename.remove
+        (OpamSystem.remove_file
            (OpamPath.Switch.Overlay.tmp_opam t.root t.switch name);
          no_changes)
       else OpamGlobals.exit 0

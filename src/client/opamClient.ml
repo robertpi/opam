@@ -147,11 +147,11 @@ let details_of_package_regexps t packages ~exact_name ~case_sensitive regexps =
 let with_switch_backup command f =
   let t = OpamState.load_state command in
   let file = OpamPath.Switch.backup t.root t.switch in
-  OpamFilename.mkdir (OpamPath.Switch.backup_dir t.root t.switch);
+  OpamSystem.mkdir (OpamPath.Switch.backup_dir t.root t.switch);
   OpamFile.Export.write file (t.installed, t.installed_roots, t.pinned);
   try
     f t;
-    OpamFilename.remove file (* We might want to keep it even if successful ? *)
+    OpamSystem.remove_file file (* We might want to keep it even if successful ? *)
   with
   | OpamGlobals.Exit 0 as e -> raise e
   | err ->
@@ -159,7 +159,7 @@ let with_switch_backup command f =
     let t1 = OpamState.load_state "switch-backup-err" in
     if OpamPackage.Set.equal t.installed t1.installed &&
        OpamPackage.Set.equal t.installed_roots t1.installed_roots then
-      OpamFilename.remove file
+      OpamSystem.remove_file file
     else
       (prerr_string
          (OpamMisc.reformat
@@ -1183,7 +1183,7 @@ module API = struct
     let dot_profile_o = Some dot_profile in
     let user = { shell; ocamlinit = true; dot_profile = dot_profile_o } in
     let root_empty =
-      not (OpamFilename.exists_dir root) || OpamFilename.dir_is_empty root in
+      not (OpamFilename.exists_dir root) || OpamSystem.dir_is_empty root in
     let update_setup t =
       let updated = match update_config with
         | `ask -> OpamState.update_setup_interactive t shell dot_profile
@@ -1292,8 +1292,8 @@ module API = struct
         OpamState.install_global_config root switch;
 
         (* Init global dirs *)
-        OpamFilename.mkdir (OpamPath.packages_dir root);
-        OpamFilename.mkdir (OpamPath.compilers_dir root);
+        OpamSystem.mkdir (OpamPath.packages_dir root);
+        OpamSystem.mkdir (OpamPath.compilers_dir root);
 
         (* Load the partial state, and update the global state *)
         log "updating repository state";
@@ -1316,7 +1316,7 @@ module API = struct
       with e ->
         OpamGlobals.error "%s" (Printexc.to_string e);
         if not !OpamGlobals.debug && root_empty then
-          OpamFilename.rmdir root;
+          OpamSystem.remove_dir root;
         raise e);
     let t = OpamState.load_state "init" in
     update_setup t

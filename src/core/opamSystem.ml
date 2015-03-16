@@ -113,40 +113,44 @@ let real_path p =
   FilePath.reduce ~no_symlink:true (FilePath.make_absolute (FileUtil.pwd ()) p)
 
 let mv src dst =
-  mkdir (FP.dirname dst);
-  F.mv src dst
+  if src <> dst then
+    (mkdir (FP.dirname dst);
+     F.mv src dst)
 
 let copy src dst =
-  mkdir (FP.dirname dst);
-  F.cp ~follow:F.Follow ~recurse:false [src] dst
+  if src <> dst then
+    (mkdir (FP.dirname dst);
+     F.cp ~follow:F.Follow ~recurse:false [src] dst)
 
 let is_exec file = F.test (F.And (F.Is_file, F.Is_exec)) file
 
-let install ?exec src dst =
-  if F.test F.Is_dir src then
-    internal_error "Cannot install %s: it is a directory." src;
-  if F.test F.Is_dir dst then
-    internal_error "Cannot install to %s: it is a directory." dst;
-  let exec = match exec with Some e -> e | None -> F.test F.Is_exec src in
-  copy src dst;
-  Unix.chmod dst (if exec then 0o755 else 0o644)
+let install ?exec ~src ~dst () =
+  if src <> dst then
+    (if F.test F.Is_dir src then
+       internal_error "Cannot install %s: it is a directory." src;
+     if F.test F.Is_dir dst then
+       internal_error "Cannot install to %s: it is a directory." dst;
+     let exec = match exec with Some e -> e | None -> F.test F.Is_exec src in
+     copy src dst;
+     Unix.chmod dst (if exec then 0o755 else 0o644))
 
 let link src dst =
-  if F.test F.Exists src then
-    if OpamGlobals.(os () = Win32) then
-      copy src dst
-    else
-      (mkdir (Filename.dirname dst);
-       if F.test F.Exists dst then
-         remove_file dst;
-       try
-         log "ln -s %s %s" src dst;
-         Unix.symlink src dst
-       with Unix.Unix_error (Unix.EXDEV, _, _) ->
-         (* Fall back to copy if hard links are not supported *)
-         copy src dst)
-  else
-    internal_error "link: %s does not exist." src
+  if src <> dst then
+    (if F.test F.Exists src then
+       if OpamGlobals.(os () = Win32) then
+         copy src dst
+       else
+         (mkdir (Filename.dirname dst);
+          if F.test F.Exists dst then
+            remove_file dst;
+          try
+            log "ln -s %s %s" src dst;
+            Unix.symlink src dst
+          with Unix.Unix_error (Unix.EXDEV, _, _) ->
+            (* Fall back to copy if hard links are not supported *)
+            copy src dst)
+     else
+       internal_error "link: %s does not exist." src)
 
 
 (* - Temp dir and file handling - *)

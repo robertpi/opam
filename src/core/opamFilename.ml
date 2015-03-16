@@ -51,7 +51,7 @@ let dirname t = FP.dirname t
 
 let basename t = FP.basename t
 
-let create dirname basename = OpamSystem.real_path (dirname / basename)
+let create dirname basename = FP.make_absolute (Dir.of_string dirname) basename
 
 let of_basename basename = FP.reduce (F.pwd () / basename)
 
@@ -61,72 +61,6 @@ let to_string t = t
 
 let of_string s = OpamSystem.real_path s
 
-(* Pure wrappers over OpamSystem *)
-
-let with_tmp_dir fn =
-  OpamSystem.with_tmp_dir (fun dir -> fn (Dir.of_string dir))
-
-let with_tmp_dir_job fjob =
-  OpamSystem.with_tmp_dir_job (fun dir -> fjob (Dir.of_string dir))
-
-let rmdir dirname =
-  OpamSystem.remove_dir (Dir.to_string dirname)
-
-let mkdir dirname =
-  OpamSystem.mkdir (Dir.to_string dirname)
-
-let rec_dirs d =
-  let fs = OpamSystem.rec_dirs (Dir.to_string d) in
-  List.rev (List.rev_map Dir.of_string fs)
-
-let dirs d =
-  let fs = OpamSystem.dirs (Dir.to_string d) in
-  List.rev (List.rev_map Dir.of_string fs)
-
-let dir_is_empty d =
-  OpamSystem.dir_is_empty (Dir.to_string d)
-
-let in_dir dirname fn = OpamSystem.in_dir dirname fn
-
-let move_dir ~src ~dst =
-  OpamSystem.mv (Dir.to_string src) (Dir.to_string dst)
-
-let read filename =
-  OpamSystem.read (to_string filename)
-
-let write filename raw =
-  OpamSystem.write (to_string filename) raw
-
-let remove filename =
-  OpamSystem.remove_file (to_string filename)
-
-let rec_files d =
-  let fs = OpamSystem.rec_files (Dir.to_string d) in
-  List.rev_map of_string fs
-
-let files d =
-  let fs = OpamSystem.files (Dir.to_string d) in
-  List.rev_map of_string fs
-
-let copy ~src ~dst =
-  if src <> dst then OpamSystem.copy (to_string src) (to_string dst)
-
-let install ?exec ~src ~dst () =
-  if src <> dst then OpamSystem.install ?exec (to_string src) (to_string dst)
-
-let move ~src ~dst =
-  if src <> dst then
-    OpamSystem.mv (to_string src) (to_string dst)
-
-let link ~src ~dst =
-  if src <> dst then OpamSystem.link (to_string src) (to_string dst)
-
-let extract filename dirname =
-  OpamSystem.extract (to_string filename) (Dir.to_string dirname)
-
-let extract_in filename dirname =
-  OpamSystem.extract_in (to_string filename) (Dir.to_string dirname)
-
 let patch filename dirname =
   OpamSystem.patch ~dir:(Dir.to_string dirname) (to_string filename)
 
@@ -135,7 +69,7 @@ let patch filename dirname =
 let cleandir dirname =
   log "cleandir %a" (slog Dir.to_string) dirname;
   OpamSystem.remove (Dir.to_string dirname);
-  mkdir dirname
+  OpamSystem.mkdir dirname
 
 let exists_dir dirname =
   try (Unix.stat (Dir.to_string dirname)).Unix.st_kind = Unix.S_DIR
@@ -151,7 +85,7 @@ let link_dir ~src ~dst =
   if exists_dir dst then
     OpamSystem.internal_error "Cannot link: %s already exists." (Dir.to_string dst)
   else (
-    mkdir (Filename.dirname dst);
+    OpamSystem.mkdir (Filename.dirname dst);
     OpamSystem.link (Dir.to_string src) (Dir.to_string dst)
   )
 
@@ -167,14 +101,14 @@ let readlink src =
     OpamSystem.internal_error "%s does not exist." (to_string src)
 
 let download ~overwrite ?compress filename dirname =
-  mkdir dirname;
+  OpamSystem.mkdir dirname;
   let dst = to_string (create dirname (basename filename)) in
   OpamSystem.download ~overwrite ?compress
     ~filename:(to_string filename) ~dst
   @@+ fun file -> Done (of_string file)
 
 let download_as ~overwrite ?(compress=false) filename dest =
-  mkdir (dirname dest);
+  OpamSystem.mkdir (dirname dest);
   OpamSystem.download ~overwrite ~compress
     ~filename:(to_string filename) ~dst:(to_string dest)
   @@+ fun file ->
@@ -224,7 +158,7 @@ let open_out filename =
 
 
 let with_contents fn filename =
-  fn (read filename)
+  fn (OpamSystem.read filename)
 
 let check_suffix filename s =
   Filename.check_suffix (to_string filename) s
@@ -253,20 +187,12 @@ let starts_with dirname filename =
 let remove_prefix prefix filename =
   FP.make_relative prefix filename
 
-let process_in ?root fn src dst =
-  let basename = match root with
-    | None   -> basename src
-    | Some r ->
-      if starts_with r src then remove_prefix r src
-      else OpamSystem.internal_error "%s is not a prefix of %s"
-          (Dir.to_string r) (to_string src) in
-  let dst = Filename.concat (Dir.to_string dst) basename in
-  fn ~src ~dst:(of_string dst)
-
-let copy_in ?root = process_in ?root copy
-
-let link_in = process_in link
-
+let copy_in ?root src dstdir =
+  let dstfile = match root with
+    | Some r -> FP.reparent r dstdir src
+    | None -> dstdir / FP.basename src
+  in
+  OpamSystem.copy src dstfile
 
 type generic_file =
   | D of Dir.t
@@ -278,7 +204,7 @@ let extract_generic_file filename dirname =
     log "extracting %a to %a"
       (slog to_string) f
       (slog Dir.to_string) dirname;
-    extract f dirname
+    OpamSystem.extract f dirname
   | D d ->
     if d <> dirname then (
       log "copying %a to %a"
@@ -316,7 +242,7 @@ let checksum f =
 
 let checksum_dir d =
   if exists_dir d then
-    List.map digest (rec_files d)
+    List.map digest (OpamSystem.rec_files d)
   else
     []
 
@@ -340,7 +266,7 @@ module Map = OpamMisc.Map.Make(O)
 module Set = OpamMisc.Set.Make(O)
 
 let copy_files ~src ~dst =
-  let files = rec_files src in
+  let files = OpamSystem.rec_files src in
   List.iter (fun file ->
       if not !OpamGlobals.do_not_copy_files then
         let base = remove_prefix src file in
@@ -350,21 +276,14 @@ let copy_files ~src ~dst =
           (prettify file)
           (if exists dst_file then "over" else "to")
           (prettify_dir dst);
-        copy ~src:file ~dst:dst_file
+        OpamSystem.copy file dst_file
     ) files
 
 module OP = struct
 
   let (/) = (/)
 
-  let (//) d1 s2 =
-    let d = Filename.dirname s2 in
-    let b = Filename.basename s2 in
-    if d <> "." then
-      create (d1 / d) (Base.of_string b)
-    else
-      create d1 (Base.of_string s2)
-
+  let (//) d1 s2 = FP.reduce (d1 / s2)
 end
 
 module Attribute = struct

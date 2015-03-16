@@ -33,7 +33,7 @@ module Hg = struct
   let init repo =
     hg repo [ "init" ] @@> fun r ->
     OpamSystem.raise_on_process_error r;
-    OpamFilename.write
+    OpamSystem.write
       OpamFilename.OP.(repo.repo_root / ".hg" // "hgrc")
       (Printf.sprintf "[paths]\ndefault = %s\n" (fst repo.repo_address));
     Done ()
@@ -44,7 +44,7 @@ module Hg = struct
       @@> fun r ->
       OpamSystem.raise_on_process_error r;
       if r.OpamProcess.r_stdout <> [fst repo.repo_address] then (
-        OpamFilename.rmdir OpamFilename.OP.(repo.repo_root / ".hg");
+        OpamSystem.remove_dir OpamFilename.OP.(repo.repo_root / ".hg");
         init repo
       ) else Done ()
     in

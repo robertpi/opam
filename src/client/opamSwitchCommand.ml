@@ -167,7 +167,7 @@ let clear_switch ?(keep_debug=false) t switch =
                       you may want to remove it by hand"
       (OpamFilename.Dir.to_string comp_dir)
   else
-  try OpamFilename.rmdir comp_dir
+  try OpamSystem.remove_dir comp_dir
   with OpamSystem.Internal_error _ -> ()
 
 let remove_t switch ?(confirm = true) t =
@@ -471,11 +471,11 @@ let reinstall_t t =
     OpamPath.Switch.lock t.root t.switch;
   ] in
   List.iter
-    (fun d -> if not (List.mem d keep_dirs) then OpamFilename.rmdir d)
-    (OpamFilename.dirs switch_root);
+    (fun d -> if not (List.mem d keep_dirs) then OpamSystem.remove_dir d)
+    (OpamSystem.dirs switch_root);
   List.iter
-    (fun f -> if not (List.mem f keep_files) then OpamFilename.remove f)
-    (OpamFilename.files switch_root);
+    (fun f -> if not (List.mem f keep_files) then OpamSystem.remove_file f)
+    (OpamSystem.files switch_root);
 
   OpamState.install_compiler t ~quiet:false t.switch ocaml_version;
   let t = OpamState.load_state "switch-reinstall-2" in
@@ -484,18 +484,18 @@ let reinstall_t t =
 let with_backup command f =
   let t = OpamState.load_state command in
   let file = OpamPath.backup t.root in
-  OpamFilename.mkdir (OpamPath.backup_dir t.root);
+  OpamSystem.mkdir (OpamPath.backup_dir t.root);
   OpamFile.Export.write file (t.installed, t.installed_roots, t.pinned);
   try
     f t;
-    OpamFilename.remove file (* We might want to keep it even if successful ? *)
+    OpamSystem.remove_file file (* We might want to keep it even if successful ? *)
   with
   | OpamGlobals.Exit 0 as e -> raise e
   | err ->
     let t1 = OpamState.load_state "backup-err" in
     if OpamPackage.Set.equal t.installed t1.installed &&
        OpamPackage.Set.equal t.installed_roots t1.installed_roots then
-      OpamFilename.remove file
+      OpamSystem.remove_file file
     else
       Printf.eprintf "The former package state can be restored with \
                       %s switch import %S%s\n"

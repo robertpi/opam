@@ -323,7 +323,7 @@ let add_pinned_overlay ?(template=false) ?version t name =
   let pkg_overlay f = f t.root t.switch name in
   let get_orig_meta rv =
     let orig = package_repo_dir t.root t.repositories t.package_index rv in
-    let files = OpamFilename.rec_files orig in
+    let files = OpamSystem.rec_files orig in
     let opam_f = orig // "opam" in
     let url_f = orig // "url" in
     let files = List.filter (fun f -> f <> opam_f && f <> url_f) files in
@@ -500,11 +500,11 @@ let remove_metadata t packages =
   let packages = packages -- all_installed in
   OpamPackage.Set.iter (fun nv ->
       let dir = OpamPath.packages t.root nv in
-      OpamFilename.rmdir dir;
+      OpamSystem.remove_dir dir;
       let parent = OpamFilename.dirname_dir dir in
-      if OpamFilename.dir_is_empty parent then OpamFilename.rmdir parent;
+      if OpamSystem.dir_is_empty parent then OpamSystem.remove_dir parent;
       let archive = OpamPath.archive t.root nv in
-      OpamFilename.remove archive;
+      OpamSystem.remove_file archive;
     ) packages
 
 let find_opam_file_in_source name dir =
@@ -552,14 +552,14 @@ let local_opam ?(root=false) ?fixed_version ?copy_invalid_to name dir =
             "Errors in opam file from %s source, ignored (fix with 'opam pin \
              edit')"
             (OpamPackage.Name.to_string name);
-          OpamFilename.copy ~src:local_opam ~dst; None
+          OpamSystem.copy local_opam dst; None
         | None -> None
   in
   opam, has_file (metadir // "descr"), has_dir (metadir / "files")
 
 
 let remove_overlay t name =
-  OpamFilename.rmdir (OpamPath.Switch.Overlay.package t.root t.switch name)
+  OpamSystem.remove_dir (OpamPath.Switch.Overlay.package t.root t.switch name)
 
 let has_url_overlay t name =
   OpamFilename.exists (OpamPath.Switch.Overlay.url t.root t.switch name)
@@ -990,7 +990,7 @@ let create_system_compiler_description root =
          implications *)
       let version = OpamCompiler.version current in
       let comp = OpamPath.compiler_comp root name in
-      OpamFilename.remove comp;
+      OpamSystem.remove_file comp;
       let f =
         OpamFile.Comp.create_preinstalled name version
           (if !OpamGlobals.no_base_packages then []
@@ -1158,7 +1158,7 @@ let clean_dir dir nv =
     log "%a exists although %a is not installed. Removing it."
       (slog OpamFilename.Dir.to_string) dir
       (slog OpamPackage.to_string) nv;
-    OpamFilename.rmdir dir
+    OpamSystem.remove_dir dir
   )
 
 let clean_file file nv =
@@ -1166,17 +1166,17 @@ let clean_file file nv =
     log "%a exists although %a is not installed. Removing it."
       (slog OpamFilename.to_string) file
       (slog OpamPackage.to_string) nv;
-    OpamFilename.remove file
+    OpamSystem.remove_file file
   )
 
 let global_dev_packages t =
   let dir = OpamPath.dev_packages_dir t.root in
-  let dirs = OpamFilename.dirs dir in
+  let dirs = OpamSystem.dirs dir in
   List.fold_left (fun map dir ->
       match OpamPackage.of_dirname dir with
       | None     ->
         OpamGlobals.note "Removing %s" (OpamFilename.Dir.to_string dir);
-        OpamFilename.rmdir dir;
+        OpamSystem.remove_dir dir;
         map
       | Some nv  ->
         OpamPackage.Map.add nv dir map
@@ -1191,11 +1191,11 @@ let switch_dev_packages t =
         OpamPackage.Map.add (pinned t name) dir map
       with Failure _ | Not_found ->
         OpamGlobals.note "Removing %s" (OpamFilename.Dir.to_string dir);
-        OpamFilename.rmdir dir;
+        OpamSystem.remove_dir dir;
         map
     )
     OpamPackage.Map.empty
-    (OpamFilename.dirs (OpamPath.Switch.dev_packages_dir t.root t.switch))
+    (OpamSystem.dirs (OpamPath.Switch.dev_packages_dir t.root t.switch))
 
 let keys map =
   OpamPackage.Map.fold (fun nv _ set ->
@@ -1220,7 +1220,7 @@ let dev_packages t =
    the temporary files. *)
 let global_consistency_checks t =
   let pkgdir = OpamPath.dev_packages_dir t.root in
-  let pkgdirs = OpamFilename.dirs pkgdir in
+  let pkgdirs = OpamSystem.dirs pkgdir in
   let stale_pkgdirs =
     List.filter (fun dir ->
         match OpamPackage.of_dirname dir with
@@ -1234,12 +1234,12 @@ let global_consistency_checks t =
   in
   List.iter (fun d ->
       log "Stale dev directory %s, removing" (OpamFilename.Dir.to_string d);
-      OpamFilename.rmdir d)
+      OpamSystem.remove_dir d)
     stale_pkgdirs;
   List.iter (fun f ->
       log "Stale file %s found, Removing\n" (OpamFilename.to_string f);
-      OpamFilename.remove f)
-    (OpamFilename.files pkgdir);
+      OpamSystem.remove_file f)
+    (OpamSystem.files pkgdir);
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases t.root) in
   if OpamSwitch.Map.exists (fun _ c -> c =  OpamCompiler.system) aliases then
     let comp_f = OpamPath.compiler_comp t.root OpamCompiler.system in
@@ -1250,7 +1250,7 @@ let global_consistency_checks t =
 
 let switch_consistency_checks t =
   let cleanup_dir title dir filter =
-    let dirs = OpamFilename.dirs dir in
+    let dirs = OpamSystem.dirs dir in
     let stale_dirs =
       List.filter (fun d ->
           try
@@ -1263,12 +1263,12 @@ let switch_consistency_checks t =
     in
     List.iter (fun d ->
         log "Stale %s directory %s, removing" title (OpamFilename.Dir.to_string d);
-        OpamFilename.rmdir d)
+        OpamSystem.remove_dir d)
       stale_dirs;
     List.iter (fun f ->
         OpamGlobals.error "Removing %s.\n" (OpamFilename.to_string f);
-        OpamFilename.remove f)
-      (OpamFilename.files dir)
+        OpamSystem.remove_file f)
+      (OpamSystem.files dir)
   in
   cleanup_dir "dev"
     (OpamPath.Switch.dev_packages_dir t.root t.switch)
@@ -1332,13 +1332,13 @@ let marshal_from_file file =
   with e ->
     OpamMisc.fatal e;
     log "Invalid cache, removing: %a" (slog Printexc.to_string) e;
-    OpamFilename.remove file;
+    OpamSystem.remove_file file;
     None
 
 let save_state ~update t =
   let chrono = OpamGlobals.timer () in
   let file = OpamPath.state_cache t.root in
-  OpamFilename.remove file;
+  OpamSystem.remove_file file;
   if update then (
     log
       "Updating the cache of metadata (%s) ...\n"
@@ -1356,7 +1356,7 @@ let save_state ~update t =
 let remove_state_cache () =
   let root = OpamPath.root () in
   let file = OpamPath.state_cache root in
-  OpamFilename.remove file
+  OpamSystem.remove_file file
 
 let reinstall_system_compiler t =
   log "reinstall-system-compiler";
@@ -1516,7 +1516,7 @@ let load_state ?(save_cache=true) call_site =
     | `Not_set -> OpamFile.Config.switch config in
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
   let compilers =
-    let files = OpamFilename.rec_files (OpamPath.compilers_dir root) in
+    let files = OpamSystem.rec_files (OpamPath.compilers_dir root) in
     let files =
       List.fold_left (fun acc file ->
         if OpamFilename.exists file then file :: acc
@@ -1691,19 +1691,19 @@ let upgrade_to_1_1 () =
       (OpamFilename.prettify_dir (OpamPath.root ()));
 
     if OpamFilename.exists_dir opam then
-      OpamFilename.move_dir ~src:opam ~dst:opam_tmp;
-    OpamFilename.rmdir descr;
+      OpamSystem.mv opam opam_tmp;
+    OpamSystem.remove_dir descr;
     if OpamFilename.exists_dir (OpamPath.packages_dir root) then
-      OpamFilename.rmdir (OpamPath.packages_dir root);
+      OpamSystem.remove_dir (OpamPath.packages_dir root);
 
     (* Remove the cache. *)
     if OpamFilename.exists (OpamPath.state_cache root) then
-      OpamFilename.remove (OpamPath.state_cache root);
+      OpamSystem.remove_file (OpamPath.state_cache root);
 
     (* Remove the index files *)
-    OpamFilename.remove (OpamPath.root () / "repo" // "index");
-    OpamFilename.remove (OpamPath.root () / "repo" // "index.packages");
-    OpamFilename.remove (OpamPath.root () / "repo" // "index.compilers");
+    OpamSystem.remove_file (OpamPath.root () / "repo" // "index");
+    OpamSystem.remove_file (OpamPath.root () / "repo" // "index.packages");
+    OpamSystem.remove_file (OpamPath.root () / "repo" // "index.compilers");
 
     (* fix the base config files *)
     let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
@@ -1711,7 +1711,7 @@ let upgrade_to_1_1 () =
         install_global_config root switch
       ) aliases;
 
-    OpamFilename.with_tmp_dir (fun tmp_dir ->
+    OpamSystem.with_tmp_dir (fun tmp_dir ->
         let keep_compilers =
           OpamCompiler.Set.of_list (OpamSwitch.Map.values aliases) in
         (* Fix system.comp *)
@@ -1725,19 +1725,19 @@ let upgrade_to_1_1 () =
                 log "backing up %a to %a"
                   (slog OpamFilename.to_string) comp
                   (slog OpamFilename.to_string) tmp_file;
-                OpamFilename.move ~src:comp ~dst:tmp_file;
+                OpamSystem.mv comp tmp_file;
                 (compname,tmp_file) :: backups
               )
               else backups
             ) keep_compilers [] in
 
-        OpamFilename.rmdir compilers;
+        OpamSystem.remove_dir compilers;
 
         List.iter (fun (compname,tmp_file) ->
             log "restoring %a" (slog OpamFilename.to_string) tmp_file;
             let comp = OpamPath.compiler_comp root compname in
-            OpamFilename.mkdir (OpamFilename.dirname comp);
-            OpamFilename.move ~src:tmp_file ~dst:comp
+            OpamSystem.mkdir (OpamFilename.dirname comp);
+            OpamSystem.mv tmp_file comp
           ) backups;
         if not (OpamFilename.exists (OpamPath.compiler_comp root OpamCompiler.system))
         then create_system_compiler_description root
@@ -1749,7 +1749,7 @@ let upgrade_to_1_1 () =
           OpamGlobals.msg
             "Removing the cache of pinned packages for the switch %s ...\n"
             (OpamSwitch.to_string switch);
-          OpamFilename.rmdir pinned_cache;
+          OpamSystem.remove_dir pinned_cache;
         )
       ) aliases;
 
@@ -1763,7 +1763,7 @@ let upgrade_to_1_1 () =
         OpamPackage.Name.Map.iter (fun name _ ->
             let t = { t with switch } in
             if is_pinned t name then (
-              OpamFilename.rmdir (OpamPath.Switch.Overlay.package root switch name);
+              OpamSystem.remove_dir (OpamPath.Switch.Overlay.package root switch name);
               add_pinned_overlay t name;
             )
           ) pinned
@@ -1778,9 +1778,9 @@ let upgrade_to_1_1 () =
           |> OpamFilename.Base.to_string
           |> OpamPackage.of_string in
         let dst = OpamPath.opam root nv in
-        if not (OpamFilename.exists dst) then OpamFilename.copy ~src:file ~dst
-      ) (OpamFilename.files opam_tmp);
-    OpamFilename.rmdir opam_tmp;
+        if not (OpamFilename.exists dst) then OpamSystem.copy file dst
+      ) (OpamSystem.files opam_tmp);
+    OpamSystem.remove_dir opam_tmp;
 
     OpamGlobals.header_msg
       "Upgrade complete. Now continuing with \"%s\""
@@ -1797,8 +1797,8 @@ let upgrade_to_1_2 () =
   let remove_pinned_suffix d =
     let s = OpamFilename.Dir.to_string d in
     if Filename.check_suffix s ".pinned" then
-      OpamFilename.move_dir ~src:d
-        ~dst:(OpamFilename.Dir.of_string (Filename.chop_suffix s ".pinned"))
+      OpamSystem.mv d
+        (OpamFilename.Dir.of_string (Filename.chop_suffix s ".pinned"))
   in
   let packages = lazy (
     OpamPackage.Set.of_list
@@ -1823,9 +1823,9 @@ let upgrade_to_1_2 () =
         OpamPackage.create name (pinned_version name)
       else nv in
     List.iter remove_pinned_suffix
-      (OpamFilename.dirs (OpamPath.Switch.dev_packages_dir root switch));
+      (OpamSystem.dirs (OpamPath.Switch.dev_packages_dir root switch));
     List.iter remove_pinned_suffix
-      (OpamFilename.dirs (OpamPath.Switch.Overlay.dir root switch));
+      (OpamSystem.dirs (OpamPath.Switch.Overlay.dir root switch));
     let installed_f = OpamPath.Switch.installed root switch in
     let installed = OpamFile.Installed.safe_read installed_f in
     OpamFile.Installed.write installed_f
@@ -1843,10 +1843,10 @@ let upgrade_to_1_2 () =
           OpamFilename.chop_extension f in
         if name <> OpamPackage.Name.global_config then
           let dst = OpamPath.Switch.config root switch name in
-          OpamFilename.mkdir (OpamFilename.dirname dst);
-          OpamFilename.move ~src:f ~dst
+          OpamSystem.mkdir (OpamFilename.dirname dst);
+          OpamSystem.mv f dst
       )
-      (OpamFilename.files (OpamPath.Switch.config_dir root switch))
+      (OpamSystem.files (OpamPath.Switch.config_dir root switch))
   ) aliases
 
 let () =
@@ -2015,7 +2015,7 @@ let ocamlinit_needs_update () =
   | None      -> true
   | Some file ->
     if OpamFilename.exists file then (
-      let body = OpamFilename.read file in
+      let body = OpamSystem.read file in
       let pattern = "OCAML_TOPLEVEL_PATH" in
       not (mem_pattern_in_string ~pattern ~string:body)
     ) else
@@ -2028,7 +2028,7 @@ let update_ocamlinit () =
     | Some file ->
       let body =
         if not (OpamFilename.exists file) then ""
-        else OpamFilename.read file in
+        else OpamSystem.read file in
       if body = "" then
         OpamGlobals.msg "  Generating ~/.ocamlinit.\n"
       else
@@ -2142,13 +2142,13 @@ let update_init_scripts t ~global =
     let needs_update =
       if OpamFilename.exists file
       && List.mem name overwrite then
-        let current = OpamFilename.read file in
+        let current = OpamSystem.read file in
         body <> current
       else
         not (OpamFilename.exists file) in
     if needs_update then (
       updated := true;
-      try OpamFilename.write file body
+      try OpamSystem.write file body
       with e -> OpamMisc.fatal e
     ) in
   List.iter write scripts;
@@ -2164,7 +2164,7 @@ let update_init_scripts t ~global =
 let status_of_init_file t init_sh =
   let init_sh = OpamPath.init t.root // init_sh in
   if OpamFilename.exists init_sh then (
-    let string = OpamFilename.read init_sh in
+    let string = OpamSystem.read init_sh in
     let aux pattern = mem_pattern_in_string ~pattern ~string in
     if OpamFilename.exists init_sh then
       let complete_sh = aux complete_sh in
@@ -2178,7 +2178,7 @@ let status_of_init_file t init_sh =
 
 let dot_profile_needs_update t dot_profile =
   if OpamFilename.exists dot_profile then (
-    let body = OpamFilename.read dot_profile in
+    let body = OpamSystem.read dot_profile in
     let pattern1 = "opam config" in
     let pattern2 = OpamFilename.to_string (OpamPath.init t.root // "init") in
     let pattern3 = OpamMisc.remove_prefix ~prefix:!OpamGlobals.root_dir pattern2 in
@@ -2205,7 +2205,7 @@ let update_dot_profile t dot_profile shell =
     let init_file = init_file shell in
     let body =
       if OpamFilename.exists dot_profile then
-        OpamFilename.read dot_profile
+        OpamSystem.read dot_profile
       else
         "" in
     OpamGlobals.msg "  Updating %s.\n" pretty_dot_profile;
@@ -2215,7 +2215,7 @@ let update_dot_profile t dot_profile shell =
          # OPAM configuration\n\
          %s"
         (OpamMisc.strip body) (source t ~shell init_file) in
-    OpamFilename.write dot_profile body
+    OpamSystem.write dot_profile body
 
 let update_setup t user global =
   begin match user with
@@ -2433,7 +2433,7 @@ let add_to_reinstall t ~all packages =
     if not (OpamPackage.Set.is_empty reinstall) then
       OpamFile.Reinstall.write file reinstall
     else
-      OpamFilename.remove file in
+      OpamSystem.remove_file file in
   if all
   then OpamSwitch.Map.iter (fun switch _ -> aux switch) t.aliases
   else aux t.switch
@@ -2469,23 +2469,23 @@ let install_compiler t ~quiet:_ switch compiler =
   (* Do some clean-up if necessary *)
   if not (is_switch_installed t switch)
   && OpamFilename.exists_dir switch_dir then
-    OpamFilename.rmdir switch_dir;
+    OpamSystem.remove_dir switch_dir;
 
   try
     (* Create base directories *)
-    OpamFilename.mkdir switch_dir;
-    OpamFilename.mkdir (OpamPath.Switch.lib_dir t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.stublibs t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.toplevel t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.build_dir t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.bin t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.sbin t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.doc_dir t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.man_dir t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.install_dir t.root switch);
-    OpamFilename.mkdir (OpamPath.Switch.config_dir t.root switch);
+    OpamSystem.mkdir switch_dir;
+    OpamSystem.mkdir (OpamPath.Switch.lib_dir t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.stublibs t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.toplevel t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.build_dir t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.bin t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.sbin t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.doc_dir t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.man_dir t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.install_dir t.root switch);
+    OpamSystem.mkdir (OpamPath.Switch.config_dir t.root switch);
     List.iter (fun num ->
-        OpamFilename.mkdir (OpamPath.Switch.man_dir ~num t.root switch)
+        OpamSystem.mkdir (OpamPath.Switch.man_dir ~num t.root switch)
       ) ["1";"1M";"2";"3";"4";"5";"6";"7";"9"];
 
     install_global_config t.root switch;
@@ -2515,7 +2515,7 @@ let install_compiler t ~quiet:_ switch compiler =
           ~dst:build_dir
       else (
         OpamProcess.Job.run @@
-        OpamFilename.with_tmp_dir_job (fun download_dir ->
+        OpamSystem.with_tmp_dir_job (fun download_dir ->
             let fake_pkg =
               match repository_and_prefix_of_compiler t compiler with
               | None -> OpamPackage.of_string "compiler.get"
@@ -2591,7 +2591,7 @@ let install_compiler t ~quiet:_ switch compiler =
       with
       | None ->
         OpamGlobals.msg "Done.\n";
-        if not !OpamGlobals.keep_build_dir then OpamFilename.rmdir build_dir
+        if not !OpamGlobals.keep_build_dir then OpamSystem.remove_dir build_dir
       | Some (cmd,err) ->
         OpamGlobals.error_and_exit "Compiler build failed at %S:\n%s"
           (OpamProcess.string_of_command cmd)
@@ -2603,7 +2603,7 @@ let install_compiler t ~quiet:_ switch compiler =
 
   with e ->
     if not !OpamGlobals.debug then
-      OpamFilename.rmdir switch_dir;
+      OpamSystem.remove_dir switch_dir;
     raise e
 
 (* write the new version in the configuration file *)
@@ -2658,7 +2658,7 @@ let update_pinned_package t ?fixed_version name =
       List.map (fun f ->
           OpamFilename.remove_prefix (OpamFilename.dirname_dir files_dir) f,
           `Digest (OpamFilename.digest f))
-        (OpamFilename.rec_files files_dir))
+        (OpamSystem.rec_files files_dir))
   in
   let old_meta = (* Version previously present in the source *)
     if pinning_kind = `version then [] else
@@ -2746,7 +2746,7 @@ let update_pinned_package t ?fixed_version name =
       if OpamFilename.exists_dir d then d else
         dir
     in
-    List.iter (fun (f, _) -> OpamFilename.remove (overlay // f)) rm_hash;
+    List.iter (fun (f, _) -> OpamSystem.remove_file (overlay // f)) rm_hash;
     List.iter (fun (f,kind) -> match kind with
         | `Opam o ->
           let vo =
@@ -2769,7 +2769,7 @@ let update_pinned_package t ?fixed_version name =
          "[%s] Installing new package description from %s\n"
          (OpamGlobals.colorise `green (OpamPackage.Name.to_string name))
          (string_of_address (OpamFile.URL.url url));
-       OpamFilename.remove
+       OpamSystem.remove_file
          (OpamPath.Switch.Overlay.tmp_opam t.root t.switch name);
        install_meta srcdir user_meta new_meta)
     else if
@@ -2783,8 +2783,8 @@ let update_pinned_package t ?fixed_version name =
     then (
       let bak =
         OpamPath.backup_dir t.root / (OpamPackage.Name.to_string name ^ ".bak") in
-      OpamFilename.mkdir (OpamPath.backup_dir t.root);
-      OpamFilename.rmdir bak;
+      OpamSystem.mkdir (OpamPath.backup_dir t.root);
+      OpamSystem.remove_dir bak;
       OpamFilename.copy_dir ~src:overlay ~dst:bak;
       OpamGlobals.formatted_msg "User metadata backed up in %s\n"
         (OpamFilename.Dir.to_string bak);
@@ -2870,9 +2870,9 @@ let download_archive t nv =
     | Up_to_date f ->
       OpamGlobals.msg "[%s] Archive in cache\n"
         (OpamGlobals.colorise `green (OpamPackage.name_to_string nv));
-      OpamFilename.copy ~src:f ~dst; Done (Some dst)
+      OpamSystem.copy f dst; Done (Some dst)
     | Result f ->
-      OpamFilename.copy ~src:f ~dst; Done (Some dst)
+      OpamSystem.copy f dst; Done (Some dst)
   with Not_found ->
     Done None
 

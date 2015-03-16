@@ -56,7 +56,7 @@ val mv: filename -> filename -> unit
 (** [install ?exec src dst] copies file [src] as file [dst] using [install].
     If [exec], make the resulting file executable (otherwise, look at the
     permissions of the original file to decide). *)
-val install: ?exec:bool -> filename -> filename -> unit
+val install: ?exec:bool -> src:filename -> dst:filename -> unit -> unit
 
 (** Checks if a file is an executable (regular file with execution
     permission) *)

@@ -25,7 +25,7 @@ let packages = OpamRepository.packages repo
 let compilers = OpamRepository.compilers repo
 
 let wopt w f = function
-  | None -> OpamFilename.remove f
+  | None -> OpamSystem.remove_file f
   | Some contents -> w f contents
 
 let apply f x prefix y =

@@ -546,7 +546,7 @@ let dose_solver_callback ~criteria (_,universe,_ as cudf) =
       | [] -> raise (Common.CudfSolver.Error "Empty solver command")
     in
     OpamSystem.sys_command ~verbose:(!OpamGlobals.debug_level >= 2) solver args;
-    OpamFilename.remove solver_in;
+    OpamSystem.remove_file solver_in;
     if not (OpamFilename.exists solver_out) then
       raise (Common.CudfSolver.Error "no output")
     else if
@@ -561,7 +561,7 @@ let dose_solver_callback ~criteria (_,universe,_ as cudf) =
     let r =
       Cudf_parser.load_solution_from_file
         (OpamFilename.to_string solver_out) universe in
-    OpamFilename.remove solver_out;
+    OpamSystem.remove_file solver_out;
     if Cudf.universe_size (snd r) = 0 &&
        not !OpamGlobals.no_base_packages &&
        Cudf.installed_size universe <> 0
@@ -569,8 +569,8 @@ let dose_solver_callback ~criteria (_,universe,_ as cudf) =
       raise (Common.CudfSolver.Error "empty solution");
     r
   with e ->
-    OpamFilename.remove solver_in;
-    OpamFilename.remove solver_out;
+    OpamSystem.remove_file solver_in;
+    OpamSystem.remove_file solver_out;
     raise e
 
 let check_cudf_version =

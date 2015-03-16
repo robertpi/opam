@@ -70,7 +70,7 @@ let state = lazy (OpamState.load_state "opam-admin-findlib")
 let installed_findlibs () =
   let { OpamState.Types.root; switch; _ } = Lazy.force state in
   let libdir = OpamPath.Switch.lib_dir root switch in
-  let dirs = OpamFilename.dirs libdir in
+  let dirs = OpamSystem.dirs libdir in
   let libs = List.fold_left (fun acc dir ->
       let file = dir // "META" in
       if OpamFilename.exists file then
@@ -79,7 +79,7 @@ let installed_findlibs () =
       else
         acc
     ) StringSet.empty dirs in
-  let files = OpamFilename.files libdir in
+  let files = OpamSystem.files libdir in
   let libs = List.fold_left (fun acc file ->
       let raw = Filename.basename (OpamFilename.to_string file) in
       let prefix = "META." in

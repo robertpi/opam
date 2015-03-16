@@ -105,12 +105,12 @@ let register_backend name backend =
 let init repo =
   log "init %a" (OpamGlobals.slog to_string) repo;
   let module B = (val find_backend repo: BACKEND) in
-  OpamFilename.rmdir repo.repo_root;
-  OpamFilename.mkdir repo.repo_root;
+  OpamSystem.remove_dir repo.repo_root;
+  OpamSystem.mkdir repo.repo_root;
   OpamFile.Repo_config.write (OpamPath.Repository.config repo) repo;
-  OpamFilename.mkdir (OpamPath.Repository.packages_dir repo);
-  OpamFilename.mkdir (OpamPath.Repository.archives_dir repo);
-  OpamFilename.mkdir (OpamPath.Repository.compilers_dir repo);
+  OpamSystem.mkdir (OpamPath.Repository.packages_dir repo);
+  OpamSystem.mkdir (OpamPath.Repository.archives_dir repo);
+  OpamSystem.mkdir (OpamPath.Repository.compilers_dir repo);
   Done ()
 
 open OpamProcess.Job.Op
@@ -208,7 +208,7 @@ let file f =
   if OpamFilename.exists f then [f] else []
 
 let dir d =
-  if OpamFilename.exists_dir d then OpamFilename.rec_files d else []
+  if OpamFilename.exists_dir d then OpamSystem.rec_files d else []
 
 (* Compiler updates *)
 
@@ -313,7 +313,7 @@ let make_archive ?(gener_digest=false) repo prefix nv =
   let archive = OpamPath.Repository.archive repo nv in
   let archive_dir = OpamPath.Repository.archives_dir repo in
   if not (OpamFilename.exists_dir archive_dir) then
-    OpamFilename.mkdir archive_dir;
+    OpamSystem.mkdir archive_dir;
 
   (* Download the remote file / fetch the remote repository *)
   let download download_dir =
@@ -327,7 +327,7 @@ let make_archive ?(gener_digest=false) repo prefix nv =
         (slog string_of_address) remote_url
         (slog string_of_repository_kind) kind;
       if not (OpamFilename.exists_dir download_dir) then
-        OpamFilename.mkdir download_dir;
+        OpamSystem.mkdir download_dir;
       match checksum with
       | Some c when gener_digest ->
         pull_url_and_fix_digest kind nv download_dir c url_file mirrors
@@ -351,9 +351,9 @@ let make_archive ?(gener_digest=false) repo prefix nv =
   let copy_files extract_dir =
     if OpamFilename.exists_dir files_dir then (
       if not (OpamFilename.exists_dir extract_dir) then
-        OpamFilename.mkdir extract_dir;
+        OpamSystem.mkdir extract_dir;
       OpamFilename.copy_files ~src:files_dir ~dst:extract_dir;
-      OpamFilename.Set.of_list (OpamFilename.rec_files extract_dir)
+      OpamFilename.Set.of_list (OpamSystem.rec_files extract_dir)
     ) else
       OpamFilename.Set.empty in
 
@@ -368,8 +368,8 @@ let make_archive ?(gener_digest=false) repo prefix nv =
     ) else
       None in
 
-  OpamFilename.with_tmp_dir_job (fun extract_root ->
-      OpamFilename.with_tmp_dir_job (fun download_dir ->
+  OpamSystem.with_tmp_dir_job (fun extract_root ->
+      OpamSystem.with_tmp_dir_job (fun download_dir ->
           download download_dir @@+ fun local_filename ->
           let extract_dir = extract_root / OpamPackage.to_string nv in
           extract local_filename extract_dir;

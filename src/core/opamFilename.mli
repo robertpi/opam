@@ -17,39 +17,19 @@
 (** Typed filename manipulation *)
 
 (** Basenames *)
-module Base: OpamMisc.ABSTRACT
+module Base: OpamMisc.ABSTRACT with type t = string
 
 (** Directory names *)
-module Dir: OpamMisc.ABSTRACT
+module Dir: OpamMisc.ABSTRACT with type t = string
 
 (** Return the current working directory *)
 val cwd: unit -> Dir.t
 
-(** Remove a directory *)
-val rmdir: Dir.t -> unit
-
 (** Clean the contents of a directory. *)
 val cleandir: Dir.t -> unit
 
-(** Create a directory *)
-val mkdir: Dir.t -> unit
-
-(** List the sub-directory recursively *)
-val rec_dirs: Dir.t -> Dir.t list
-
-val dir_is_empty: Dir.t -> bool
-
-(** List the sub-directory (do not recurse) *)
-val dirs: Dir.t -> Dir.t list
-
-(** Evaluate a function in a given directory *)
-val in_dir: Dir.t -> (unit -> 'a) -> 'a
-
 (** Turns an assoc list into an array suitable to be provided as environment *)
 val env_of_list: (string * string) list -> string array
-
-(** Move a directory *)
-val move_dir: src:Dir.t -> dst:Dir.t -> unit
 
 (** Copy a directory *)
 val copy_dir: src:Dir.t -> dst:Dir.t -> unit
@@ -72,13 +52,7 @@ val to_list_dir: Dir.t -> Dir.t list
 (** Creation from a raw string (as {i http://<path>}) *)
 val raw_dir: string -> Dir.t
 
-(** Execute a function in a temp directory *)
-val with_tmp_dir: (Dir.t -> 'a) -> 'a
-
-(** Provide an automatically cleaned up temp directory to a job *)
-val with_tmp_dir_job: (Dir.t -> 'a OpamProcess.job) -> 'a OpamProcess.job
-
-include OpamMisc.ABSTRACT
+include OpamMisc.ABSTRACT with type t = string
 
 (** Generic filename *)
 type generic_file =
@@ -110,18 +84,9 @@ val dirname: t -> Dir.t
 (** Return the base name *)
 val basename: t -> Base.t
 
-(** Retrieves the contents from the hard disk. *)
-val read: t -> string
-
 (** Open a channel from a given file. *)
 val open_in: t -> in_channel
 val open_out: t -> out_channel
-
-(** Removes everything in [filename] if existed. *)
-val remove: t -> unit
-
-(** Removes everything in [filename] if existed, then write [contents] instead. *)
-val write: t -> string -> unit
 
 (** Returns true if the file exists and is a regular file or a symlink to one *)
 val exists: t -> bool
@@ -135,25 +100,8 @@ val add_extension: t -> string -> t
 (** Remove the file extension *)
 val chop_extension: t -> t
 
-(** List all the filenames, recursively *)
-val rec_files: Dir.t -> t list
-
-(** List all the filename. Do not recurse. *)
-val files: Dir.t -> t list
-
 (** Apply a function on the contents of a file *)
 val with_contents: (string -> 'a) -> t -> 'a
-
-(** Copy a file in a directory. If [root] is set, copy also the
-    sub-directories. For instance, [copy_in ~root:"/foo" "/foo/bar/gni"
-    "/toto"] creates ["/toto/bar/gni"]. *)
-val copy_in: ?root:Dir.t -> t -> Dir.t -> unit
-
-(** Move a file *)
-val move: src:t -> dst:t -> unit
-
-(** Symlink a file in a directory *)
-val link_in: t -> Dir.t -> unit
 
 (** Read a symlinked file *)
 val readlink: t -> t
@@ -163,23 +111,6 @@ val is_symlink: t -> bool
 
 (** Is an executable ? *)
 val is_exec: t -> bool
-
-(** Copy a file *)
-val copy: src:t -> dst:t -> unit
-
-(** Installs a file to a destination. Optionnally set if the destination should
-    be set executable *)
-val install: ?exec:bool -> src:t -> dst:t -> unit -> unit
-
-(** Symlink a file. If symlink is not possible on the system, use copy instead. *)
-val link: src:t -> dst:t -> unit
-
-(** Extract an archive in a given directory (it rewrites the root to
-    match [Dir.t] dir if needed) *)
-val extract: t -> Dir.t -> unit
-
-(** Extract an archive in a given directory (which should already exists) *)
-val extract_in: t -> Dir.t -> unit
 
 (** Extract a generic file *)
 val extract_generic_file: generic_file -> Dir.t -> unit
@@ -227,6 +158,8 @@ val chmod: t -> int -> unit
 
 (** File locks *)
 val with_flock: ?read:bool -> t -> ('a -> 'b) -> 'a -> 'b
+
+val copy_in: ?root:Dir.t -> t -> t -> unit
 
 (** [copy_if_check t src dst] copies all the files from one directory
     to another. Do nothing if OPAMDONOTCOPYFILE is set to a non-empty

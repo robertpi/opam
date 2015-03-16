@@ -30,7 +30,7 @@ let install_package t nv =
       OpamGlobals.msg "Installing %s.\n" (OpamPackage.to_string nv)
   else
   let build_dir = OpamPath.Switch.build t.root t.switch nv in
-  if OpamFilename.exists_dir build_dir then OpamFilename.in_dir build_dir (fun () ->
+  if OpamFilename.exists_dir build_dir then OpamSystem.in_dir build_dir (fun () ->
 
       log "Installing %s.\n" (OpamPackage.to_string nv);
       let name = OpamPackage.name nv in
@@ -45,7 +45,7 @@ let install_package t nv =
 
       (* .config *)
       let dot_config = OpamPath.Switch.config t.root t.switch name in
-      OpamFilename.mkdir (OpamFilename.dirname dot_config);
+      OpamSystem.mkdir (OpamFilename.dirname dot_config);
       OpamFile.Dot_config.write dot_config config;
 
       let warnings = ref [] in
@@ -65,7 +65,7 @@ let install_package t nv =
         let files = files_fn install in
         if not (OpamFilename.exists_dir dst_dir) then (
           log "creating %a" (slog OpamFilename.Dir.to_string) dst_dir;
-          OpamFilename.mkdir dst_dir;
+          OpamSystem.mkdir dst_dir;
         );
         List.iter (fun (base, dst) ->
             let src_file = OpamFilename.create build_dir base.c in
@@ -73,7 +73,7 @@ let install_package t nv =
               | None   -> OpamFilename.create dst_dir (OpamFilename.basename src_file)
               | Some d -> OpamFilename.create dst_dir d in
             if check ~src:build_dir ~dst:dst_dir base then
-              OpamFilename.install ~exec ~src:src_file ~dst:dst_file ();
+              OpamSystem.install ~exec ~src:src_file ~dst:dst_file ();
           ) files in
 
       (* bin *)
@@ -113,12 +113,12 @@ let install_package t nv =
           let src_file = OpamFilename.create (OpamFilename.cwd ()) src.c in
           if OpamFilename.exists dst
           && OpamGlobals.confirm "Overwriting %s ?" (OpamFilename.to_string dst) then
-            OpamFilename.install ~src:src_file ~dst ()
+            OpamSystem.install ~src:src_file ~dst ()
           else begin
             OpamGlobals.msg "Installing %s to %s.\n"
               (OpamFilename.Base.to_string src.c) (OpamFilename.to_string dst);
             if OpamGlobals.confirm "Continue ?" then
-              OpamFilename.install ~src:src_file ~dst ()
+              OpamSystem.install ~src:src_file ~dst ()
           end
         ) (OpamFile.Dot_install.misc install);
 
@@ -139,7 +139,7 @@ let install_package t nv =
       )
     );
   if not (!OpamGlobals.keep_build_dir || !OpamGlobals.debug) then
-    OpamFilename.rmdir build_dir
+    OpamSystem.remove_dir build_dir
 
 (* Prepare the package build:
    * apply the patches
@@ -167,8 +167,8 @@ let prepare_package_build t nv =
 
   let p_build = OpamPath.Switch.build t.root t.switch nv in
 
-  OpamFilename.mkdir p_build;
-  OpamFilename.in_dir p_build (fun () ->
+  OpamSystem.mkdir p_build;
+  OpamSystem.in_dir p_build (fun () ->
     let all = OpamFile.OPAM.substs opam in
     let patches =
       OpamMisc.filter_map (fun (f,_) ->
@@ -193,7 +193,7 @@ let prepare_package_build t nv =
      directory to get the correct absolute path for the
      substitution files (see [substitute_file] and
      [OpamFilename.of_basename]. *)
-  OpamFilename.in_dir p_build (fun () ->
+  OpamSystem.in_dir p_build (fun () ->
     List.iter
       (OpamFilter.expand_interpolations_in_file (OpamState.filter_env ~opam t))
       (OpamFile.OPAM.substs opam)
@@ -243,12 +243,12 @@ let extract_package t source nv =
     source;
   if !OpamGlobals.dryrun then () else
   let build_dir = OpamPath.Switch.build t.root t.switch nv in
-  OpamFilename.rmdir build_dir;
+  OpamSystem.remove_dir build_dir;
   let () =
     match source with
     | None -> ()
     | Some (D dir) -> OpamFilename.copy_dir ~src:dir ~dst:build_dir
-    | Some (F archive) -> OpamFilename.extract archive build_dir
+    | Some (F archive) -> OpamSystem.extract archive build_dir
   in
   let is_repackaged_archive =
     Some (F (OpamPath.archive t.root nv)) = source
@@ -393,13 +393,13 @@ let remove_package_aux t ~metadata ?(keep_build=false) ?(silent=false) nv =
         let dst_file = match dst with
           | None   -> dst_dir // Filename.basename (OpamFilename.Base.to_string base.c)
           | Some b -> OpamFilename.create dst_dir b in
-        OpamFilename.remove dst_file
+        OpamSystem.remove_file dst_file
       ) files in
 
   let remove_files_and_dir ?(quiet=false) dst_fn files =
     let dir = dst_fn t.root t.switch name in
     remove_files (fun _ _ -> dir) files;
-    if OpamFilename.rec_files dir = [] then OpamFilename.rmdir dir
+    if OpamSystem.rec_files dir = [] then OpamSystem.remove_dir dir
     else if not quiet && OpamFilename.exists_dir dir then
       OpamGlobals.warning "Directory %s is not empty, not removing"
         (OpamFilename.Dir.to_string dir) in
@@ -407,12 +407,12 @@ let remove_package_aux t ~metadata ?(keep_build=false) ?(silent=false) nv =
   let uninstall_files () =
     (* Remove build/<package> *)
     if not (keep_build || !OpamGlobals.keep_build_dir) then
-      OpamFilename.rmdir (OpamPath.Switch.build t.root t.switch nv);
+      OpamSystem.remove_dir (OpamPath.Switch.build t.root t.switch nv);
 
     (* Remove .config and .install *)
     log "Removing config and install files";
-    OpamFilename.remove (OpamPath.Switch.install t.root t.switch name);
-    OpamFilename.remove (OpamPath.Switch.config t.root t.switch name);
+    OpamSystem.remove_file (OpamPath.Switch.install t.root t.switch name);
+    OpamSystem.remove_file (OpamPath.Switch.config t.root t.switch name);
 
     log "Removing files from .install";
     remove_files OpamPath.Switch.sbin OpamFile.Dot_install.sbin;
@@ -433,7 +433,7 @@ let remove_package_aux t ~metadata ?(keep_build=false) ?(silent=false) nv =
         if OpamFilename.exists dst then begin
           OpamGlobals.msg "Removing %s." (OpamFilename.to_string dst);
           if OpamGlobals.confirm "Continue ?" then
-            OpamFilename.remove dst
+            OpamSystem.remove_file dst
         end
       ) (OpamFile.Dot_install.misc install);
 
@@ -468,13 +468,13 @@ let cleanup_package_artefacts t nv =
 
   let build_dir = OpamPath.Switch.build t.root t.switch nv in
   if not !OpamGlobals.keep_build_dir && OpamFilename.exists_dir build_dir then
-    OpamFilename.rmdir build_dir;
+    OpamSystem.remove_dir build_dir;
   let name = OpamPackage.name nv in
   let dev_dir = OpamPath.Switch.dev_package t.root t.switch name in
   if not (OpamState.is_package_installed t nv) then (
     if OpamFilename.exists_dir dev_dir then (
       log "Cleaning-up the switch repository";
-      OpamFilename.rmdir dev_dir );
+      OpamSystem.remove_dir dev_dir );
     log "Removing the local metadata";
     OpamState.remove_metadata t (OpamPackage.Set.singleton nv);
   );
@@ -484,7 +484,7 @@ let cleanup_package_artefacts t nv =
   if OpamFilename.exists_dir dev &&
      not (OpamPackage.Set.mem nv (OpamState.all_installed t)) then (
     log "Removing %a" (slog OpamFilename.Dir.to_string) dev;
-    OpamFilename.rmdir dev;
+    OpamSystem.remove_dir dev;
   )
 
 let sources_needed t g =

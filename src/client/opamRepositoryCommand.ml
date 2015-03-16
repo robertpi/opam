@@ -48,7 +48,7 @@ let update t repo =
       else match OpamState.redirect t r with
         | None -> Done ()
         | Some (new_repo, f) ->
-          OpamFilename.rmdir repo.repo_root;
+          OpamSystem.remove_dir repo.repo_root;
           OpamFile.Repo_config.write (OpamPath.Repository.config repo) new_repo;
           let reason = match f with
             | None   -> ""
@@ -145,7 +145,7 @@ let fix_compiler_descriptions t ~verbose =
   OpamCompiler.Set.iter (fun comp ->
       if not (OpamState.is_compiler_installed t comp) then
         let dir = OpamPath.compilers t.root comp in
-        OpamFilename.rmdir dir;
+        OpamSystem.remove_dir dir;
     ) deleted_compilers;
 
   (* Update the compiler description *)
@@ -155,8 +155,8 @@ let fix_compiler_descriptions t ~verbose =
       | Some (repo, prefix) ->
         let files = OpamRepository.compiler_files repo prefix comp in
         let dir = OpamPath.compilers t.root comp in
-        OpamFilename.rmdir dir;
-        OpamFilename.mkdir dir;
+        OpamSystem.remove_dir dir;
+        OpamSystem.mkdir dir;
         List.iter (fun file ->
             OpamFilename.copy_in file dir
           ) files;
@@ -317,8 +317,8 @@ let fix_package_descriptions t ~verbose =
   (* Remove the deleted packages' data (unless they are still installed) *)
   OpamPackage.Set.iter (fun nv ->
       if not (OpamPackage.Set.mem nv all_installed) then (
-        OpamFilename.rmdir  (OpamPath.packages t.root nv);
-        OpamFilename.remove (OpamPath.archive t.root nv);
+        OpamSystem.remove_dir  (OpamPath.packages t.root nv);
+        OpamSystem.remove_file (OpamPath.archive t.root nv);
       )) deleted_packages;
 
   (* that's not a good idea *at all* to enable this hook if you
@@ -365,17 +365,17 @@ let fix_package_descriptions t ~verbose =
       | None                -> ()
       | Some (repo, prefix) ->
         let dir = OpamPath.packages t.root nv in
-        if OpamFilename.exists_dir dir then OpamFilename.rmdir dir;
+        if OpamFilename.exists_dir dir then OpamSystem.remove_dir dir;
         if OpamPackage.Set.mem nv all_installed then
           let root = OpamPath.Repository.packages repo prefix nv in
           let files = OpamRepository.package_files repo prefix nv ~archive:false in
           assert (files <> []);
-          OpamFilename.mkdir dir;
+          OpamSystem.mkdir dir;
           List.iter (fun file ->
               OpamFilename.copy_in ~root file dir
             ) files;
-          OpamFilename.remove (OpamPath.archive t.root nv);
-          OpamFilename.remove (OpamPath.Repository.archive repo nv);
+          OpamSystem.remove_file (OpamPath.archive t.root nv);
+          OpamSystem.remove_file (OpamPath.Repository.archive repo nv);
     ) (OpamPackage.Set.union missing_installed_packages updated_packages);
 
   (* Remove archives of non-installed packages (these may no longer be
@@ -384,7 +384,7 @@ let fix_package_descriptions t ~verbose =
       let f = OpamPath.archive t.root nv in
       if OpamFilename.exists f then
         (log "Cleaning up obsolete archive %a" (slog OpamFilename.to_string) f;
-         OpamFilename.remove f))
+         OpamSystem.remove_file f))
     (OpamPackage.keys global_index -- all_installed);
 
   (* Display some warnings/errors *)
@@ -464,7 +464,7 @@ let cleanup t repo =
    log "cleanup %a" (slog OpamRepositoryName.to_string) repo.repo_name;
   let repos = OpamRepositoryName.Map.keys t.repositories in
   update_config t (List.filter ((<>) repo.repo_name) repos);
-  OpamFilename.rmdir repo.repo_root;
+  OpamSystem.remove_dir repo.repo_root;
   fix_descriptions t
 
 let priority repo_name ~priority =

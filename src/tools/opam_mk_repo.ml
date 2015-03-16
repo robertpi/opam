@@ -280,7 +280,7 @@ let process {index; gener_digest; dryrun; recurse; names; debug; resolve} =
         let archive = OpamPath.Repository.archive repo nv in
         OpamGlobals.msg "Removing %s ...\n" (OpamFilename.to_string archive);
         if not dryrun then
-          OpamFilename.remove archive
+          OpamSystem.remove_file archive
       ) to_remove;
 
     (* build the new archives *)
@@ -291,7 +291,7 @@ let process {index; gener_digest; dryrun; recurse; names; debug; resolve} =
         let local_archive = OpamPath.Repository.archive repo nv in
         let url_file = OpamPath.Repository.url repo prefix nv in
         try
-          if not dryrun then OpamFilename.remove local_archive;
+          if not dryrun then OpamSystem.remove_file local_archive;
           if OpamFilename.exists url_file &&
              OpamFile.URL.kind (OpamFile.URL.read url_file) = `http
           then (
@@ -301,7 +301,7 @@ let process {index; gener_digest; dryrun; recurse; names; debug; resolve} =
             else OpamProcess.Job.run job
           )
         with e ->
-          OpamFilename.remove local_archive;
+          OpamSystem.remove_file local_archive;
           errors := (nv, e) :: !errors;
           OpamMisc.fatal e
       ) to_add;

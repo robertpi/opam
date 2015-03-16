@@ -80,7 +80,7 @@ let rsync_dirs ?args src dst =
   in
   let dst_s = OpamFilename.Dir.to_string dst in
   let remote = String.contains src_s ':' in
-  if not remote then OpamFilename.mkdir src;
+  if not remote then OpamSystem.mkdir src;
   rsync ?args src_s dst_s @@| function
   | Not_available s -> Not_available s
   | Result _        ->
@@ -133,7 +133,7 @@ module B = struct
       (OpamPath.Repository.compilers_dir repo)
       (OpamPath.Repository.remote_compilers_dir repo)
     @@+ fun _ ->
-    let archives = OpamFilename.files (OpamPath.Repository.archives_dir repo) in
+    let archives = OpamSystem.files (OpamPath.Repository.archives_dir repo) in
     log "archives: %a"
       (slog (OpamMisc.string_of_list OpamFilename.to_string)) archives;
     let rec dl_archives = function
@@ -142,12 +142,12 @@ module B = struct
         match OpamPackage.of_archive archive with
         | None ->
           OpamGlobals.msg "Removing %s\n." (OpamFilename.to_string archive);
-          OpamFilename.remove archive;
+          OpamSystem.remove_file archive;
           dl_archives archives
         | Some nv ->
           let remote_filename = OpamPath.Repository.remote_archive repo nv in
           rsync_file remote_filename archive @@+ function
-          | Not_available _ -> OpamFilename.remove archive; dl_archives archives
+          | Not_available _ -> OpamSystem.remove_file archive; dl_archives archives
           | _ -> dl_archives archives
     in
     dl_archives archives @@| fun () ->
@@ -158,7 +158,7 @@ module B = struct
 
   let pull_url package local_dirname checksum remote_url =
     let remote_url = string_of_address remote_url in
-    OpamFilename.mkdir local_dirname;
+    OpamSystem.mkdir local_dirname;
     let dir = OpamFilename.Dir.to_string local_dirname in
     let remote_url =
       if Sys.file_exists remote_url && Sys.is_directory remote_url
@@ -182,7 +182,7 @@ module B = struct
             let filename = OpamFilename.OP.(local_dirname // f) in
             if OpamRepository.check_digest filename checksum
             then res (F filename)
-            else (OpamFilename.remove filename; Not_available remote_url)
+            else (OpamSystem.remove_file filename; Not_available remote_url)
           | _ -> res (D local_dirname)
     in
     OpamGlobals.msg "[%s] %s %s\n"
@@ -193,7 +193,7 @@ module B = struct
 
   let pull_archive repo filename =
     let local_dir = OpamPath.Repository.archives_dir repo in
-    OpamFilename.mkdir local_dir;
+    OpamSystem.mkdir local_dir;
     pull_file_quiet local_dir filename @@| function
     | Not_available _ as r when !OpamGlobals.verbose_level < 2 -> r
     | r ->

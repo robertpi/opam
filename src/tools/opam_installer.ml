@@ -41,13 +41,13 @@ let do_commands project_root =
   let mkdir d =
     if not (OpamFilename.exists_dir d) then
       (OpamGlobals.msg "Creating directory %s\n%!" (OpamFilename.Dir.to_string d);
-       OpamFilename.mkdir d)
+       OpamSystem.mkdir d)
   in
   let rec rmdir ~opt d =
     if not (OpamFilename.exists_dir d) then ()
     else if Sys.readdir (OpamFilename.Dir.to_string d) = [||] then
       (OpamGlobals.msg "Removing empty dir %S\n" (OpamFilename.Dir.to_string d);
-       OpamFilename.rmdir d;
+       OpamSystem.remove_dir d;
        let parent = OpamFilename.dirname_dir d in
        if parent <> d then rmdir ~opt:true parent)
     else if not opt then
@@ -59,14 +59,14 @@ let do_commands project_root =
        OpamGlobals.msg "%-32s => %s\n"
          (OpamFilename.remove_prefix project_root src)
          (OpamFilename.to_string dst);
-       OpamFilename.install ?exec ~src ~dst ())
+       OpamSystem.install ?exec ~src ~dst ())
     else if not opt then
       OpamGlobals.error "Could not find %S" (OpamFilename.to_string src)
   in
   let rm ~opt f =
     if OpamFilename.exists f then
       (OpamGlobals.msg "Removing %s\n" (OpamFilename.to_string f);
-       OpamFilename.remove f)
+       OpamSystem.remove_file f)
     else if not opt then
       OpamGlobals.warning "%S doesn't exist" (OpamFilename.to_string f)
   in
@@ -272,7 +272,7 @@ let options =
         if OpamFilename.exists f then f else
           raise (Invalid_argument ("File not found: " ^ file))
       | None ->
-        let candidates = OpamFilename.files (OpamFilename.cwd ()) in
+        let candidates = OpamSystem.files (OpamFilename.cwd ()) in
         match
           List.filter (fun f -> OpamFilename.check_suffix f ".install")
             candidates

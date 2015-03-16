@@ -64,7 +64,7 @@ let process args =
             in
             OpamPath.Repository.packages repo prefix new_pkg
           in
-          OpamFilename.move_dir ~src:path ~dst:new_path;
+          OpamSystem.mv path new_path;
           (* XXX: do we want to rename the findlib packages as well ?? *)
         )
       ) else (

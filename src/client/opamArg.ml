@@ -176,7 +176,7 @@ let create_build_options
 let json_update = function
   | None   -> ()
   | Some f ->
-    let write str = OpamFilename.write (OpamFilename.of_string f) str in
+    let write str = OpamSystem.write (OpamFilename.of_string f) str in
     OpamJson.set_output write
 
 let apply_build_options b =
@@ -734,7 +734,7 @@ let init =
       build_options repo_kind repo_name repo_address compiler jobs
       no_setup auto_setup shell dot_profile_o =
     (* Create the dir in current directory so that it can be made absolute *)
-    OpamFilename.mkdir global_options.root;
+    OpamSystem.mkdir global_options.root;
     apply_global_options global_options;
     apply_build_options build_options;
     let repo_priority = 0 in
@@ -1723,7 +1723,7 @@ let source =
           | Some k -> k
           | None -> assert false
         in
-        mkdir dir;
+        OpamSystem.mkdir dir;
         let text =
           OpamProcess.make_command_text (OpamPackage.name_to_string nv)
             (string_of_repository_kind kind)
@@ -1745,9 +1745,9 @@ let source =
       | `Error () -> OpamGlobals.error_and_exit "Download failed"
       | `Successful s ->
         (try OpamAction.extract_package t s nv with Failure _ -> ());
-        move_dir
-          ~src:(OpamPath.Switch.build t.root t.switch nv)
-          ~dst:dir;
+        OpamSystem.mv
+          (OpamPath.Switch.build t.root t.switch nv)
+          dir;
         OpamGlobals.formatted_msg "Successfully extracted to %s\n"
           (Dir.to_string dir);
         if OpamState.find_opam_file_in_source (OpamPackage.name nv) dir = None

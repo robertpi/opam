@@ -38,9 +38,9 @@ let make_index_archive path = path // "index.tar.gz"
 let local_files repo =
   let all =
     OpamPath.Repository.repo repo ::
-      OpamFilename.rec_files (OpamPath.Repository.packages_dir repo) @
-      OpamFilename.rec_files (OpamPath.Repository.archives_dir repo) @
-      OpamFilename.rec_files (OpamPath.Repository.compilers_dir repo) in
+      OpamSystem.rec_files (OpamPath.Repository.packages_dir repo) @
+      OpamSystem.rec_files (OpamPath.Repository.archives_dir repo) @
+      OpamSystem.rec_files (OpamPath.Repository.compilers_dir repo) in
   List.filter OpamFilename.exists all
 
 (* Generate urls.txt (for opam-admin, or rebuilding if interrupted during
@@ -116,7 +116,7 @@ let sync_state repo =
     changed_files;
   (* Remove the index before making changes, so that it'll be consistently
      rebuilt in case of interruption *)
-  OpamFilename.remove index_file;
+  OpamSystem.remove_file index_file;
   (if OpamFilename.Map.cardinal changed_files > 4 then (
       log "-> downloading the full archive";
       OpamProcess.Job.catch
@@ -131,9 +131,9 @@ let sync_state repo =
       @@+ fun () ->
       OpamFilename.Map.iter (fun f _ ->
           if OpamFilename.Map.mem f old_state.local_remote
-          then OpamFilename.remove f)
+          then OpamSystem.remove_file f)
         changed_files;
-      OpamFilename.extract_in index_archive repo.repo_root;
+      OpamSystem.extract_in index_archive repo.repo_root;
       Done true
     ) else
      Done false)
@@ -141,14 +141,14 @@ let sync_state repo =
   (if not got_archive then
      OpamFilename.Map.fold (fun f remote job ->
          match remote with
-         | None -> OpamFilename.remove f; job
+         | None -> OpamSystem.remove_file f; job
          | Some remote ->
            job @@+ fun () ->
            OpamFilename.download_as ~overwrite:true remote f)
        changed_files (Done ())
    else Done ())
   @@+ fun () ->
-  OpamFilename.move ~src:index_file_new ~dst:index_file;
+  OpamSystem.mv index_file_new index_file;
   state_cache := (repo.repo_address, new_state) ::
                  (List.remove_assoc repo.repo_address !state_cache);
   OpamGlobals.msg "[%s] synchronized from %s\n"
@@ -201,7 +201,7 @@ module B = struct
       | None   -> false
       | Some c -> OpamFilename.digest f = c
     in
-    let files = OpamFilename.files dirname in
+    let files = OpamSystem.files dirname in
     let uptodate =
       let found, extra =
         List.partition (fun f -> f = local_file && check_sum f) files
@@ -214,7 +214,7 @@ module B = struct
         (log "Removing stale files in download dir: %a"
            (slog @@ List.map OpamFilename.to_string @> OpamMisc.pretty_list)
            extra;
-         List.iter OpamFilename.remove extra);
+         List.iter OpamSystem.remove_file extra);
       found <> []
     in
     if uptodate then Done (Result (F local_file))
@@ -229,7 +229,7 @@ module B = struct
          (OpamFilename.to_string filename);
        Done (Result (F local_file)))
     else
-      (OpamFilename.remove local_file;
+      (OpamSystem.remove_file local_file;
        Done (Not_available remote_url))
 
   let pull_archive repo filename =

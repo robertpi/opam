@@ -19,17 +19,17 @@ open OpamTypes
 module Git = struct
 
   let exec repo command =
-    OpamFilename.in_dir repo (fun () ->
+    OpamSystem.in_dir repo (fun () ->
         OpamSystem.sys_command (List.hd command) (List.tl command)
       )
 
   let return_one_line repo command =
-    OpamFilename.in_dir repo (fun () ->
+    OpamSystem.in_dir repo (fun () ->
         List.hd (OpamSystem.read_command_output (List.hd command) (List.tl command))
       )
 
   let return repo command =
-    OpamFilename.in_dir repo (fun () ->
+    OpamSystem.in_dir repo (fun () ->
         (OpamSystem.read_command_output (List.hd command) (List.tl command))
       )
 

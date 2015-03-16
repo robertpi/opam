@@ -308,15 +308,18 @@ module X = struct
 
     let url_and_kind ~src ~archive ~http ~git ~darcs ~hg ~local =
       let extract =
-        match src, archive, http, git, darcs, hg, local with
-        | None  , None  , None  , None  , None  , None  , None   -> None
-        | Some x, None  , None  , None  , None  , None  , None
-        | None  , Some x, None  , None  , None  , None  , None   -> Some (x, None)
-        | None  , None  , Some x, None  , None  , None  , None   -> Some (x, Some `http)
-        | None  , None  , None  , Some x, None  , None  , None   -> Some (x, Some `git)
-        | None  , None  , None  , None  , Some x, None  , None   -> Some (x, Some `darcs)
-        | None  , None  , None  , None  , None  , Some x, None   -> Some (x, Some `hg)
-        | None  , None  , None  , None  , None  , None  , Some x -> Some (x, Some `local)
+        let urls = [
+          src, None;
+          archive, None;
+          http, Some `http;
+          git, Some `git;
+          darcs, Some `darcs;
+          hg, Some `hg;
+          local, Some `local
+        ] in
+        match List.filter (fun (x,_) -> x <> None) urls with
+        | [] -> None
+        | [Some x,kind] -> Some (x, kind)
         | _ -> OpamFormat.bad_format "Too many URLS"
       in
       match extract with

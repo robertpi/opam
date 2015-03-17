@@ -107,7 +107,7 @@ let dirs dir =
   try list F.Is_dir dir with Sys_error _ -> []
 
 let dir_is_empty dir =
-  try list F.True dir <> [] with F.FileDoesntExist _ -> false
+  try list F.True dir = [] with F.FileDoesntExist _ -> false
 
 let real_path p =
   FilePath.reduce ~no_symlink:true (FilePath.make_absolute (FileUtil.pwd ()) p)

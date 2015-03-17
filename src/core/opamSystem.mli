@@ -198,7 +198,7 @@ val funlock: lock -> unit
 
 (** download compiler sources *)
 val download: overwrite:bool -> ?compress:bool ->
-  filename:string -> dst:string -> string OpamProcess.job
+  url:string -> dst:string -> string OpamProcess.job
 
 (** Apply a patch file. *)
 val patch: dir:string -> string -> unit

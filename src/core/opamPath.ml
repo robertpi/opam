@@ -189,18 +189,12 @@ module Repository = struct
 
   let repo t = root t // "repo"
 
-  let remote_repo t =
-    OpamFilename.raw_dir (fst t.repo_address) // "repo"
-
   let raw_config root name =
     root / "repo" / OpamRepositoryName.to_string name // "config"
 
   let config t = root t // "config"
 
   let packages_dir t = root t / "packages"
-
-  let remote_packages_dir t =
-    OpamFilename.raw_dir (fst t.repo_address) / "packages"
 
   let packages t prefix nv =
     match prefix with
@@ -219,17 +213,9 @@ module Repository = struct
 
   let archive t nv = archives_dir t // (OpamPackage.to_string nv ^ "+opam.tar.gz")
 
-  let remote_archive t nv =
-    OpamFilename.raw_dir (fst t.repo_address)
-    / "archives"
-    // (OpamPackage.to_string nv ^ "+opam.tar.gz")
-
   let upload_dir t = root t / "upload"
 
   let compilers_dir t = root t / "compilers"
-
-  let remote_compilers_dir t =
-    OpamFilename.raw_dir (fst t.repo_address) / "compilers"
 
   let compiler_comp t prefix c =
     match prefix with
@@ -240,5 +226,20 @@ module Repository = struct
     match prefix with
     | None   -> compilers_dir t // (OpamCompiler.to_string c ^ ".descr")
     | Some p -> compilers_dir t / p // (OpamCompiler.to_string c ^ ".descr")
+
+  module Remote = struct
+    let repo t =
+      fst t.repo_address ^"/repo"
+
+    let packages_dir t =
+      fst t.repo_address ^"/packages"
+
+    let archive t nv =
+      fst t.repo_address ^"/archives/"^
+      OpamPackage.to_string nv ^"+opam.tar.gz"
+
+    let compilers_dir t =
+      fst t.repo_address ^"/compilers"
+  end
 
 end

@@ -80,7 +80,7 @@ module Map = OpamMisc.Map.Make(O)
 module type BACKEND = sig
   val pull_url: package -> dirname -> string option -> address -> generic_file download OpamProcess.job
   val pull_repo: repository -> unit OpamProcess.job
-  val pull_archive: repository -> filename -> filename download OpamProcess.job
+  val pull_archive: repository -> string -> filename download OpamProcess.job
   val revision: repository -> version option OpamProcess.job
 end
 
@@ -175,7 +175,7 @@ let check_digest filename = function
 
 let pull_archive repo nv =
   let module B = (val find_backend_by_kind repo.repo_kind: BACKEND) in
-  let filename = OpamPath.Repository.remote_archive repo nv in
+  let filename = OpamPath.Repository.Remote.archive repo nv in
   B.pull_archive repo filename
 
 let check_version repo =

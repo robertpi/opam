@@ -291,6 +291,9 @@ val pretty_backtrace: exn -> string
 (** Prettify a local path (eg. replace /home/me/ by '~') *)
 val prettify_path: string -> string
 
+(** Returns the last file component of an URL *)
+val url_basename: string -> string
+
 module OP: sig
 
   (** Function application (with lower priority) (predefined in OCaml 4.01+) *)

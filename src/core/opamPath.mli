@@ -262,9 +262,6 @@ module Repository: sig
   (** Return the repo file *)
   val repo: repository -> filename
 
-  (** Remote repo file *)
-  val remote_repo: repository -> filename
-
   (** Return the repository config: {i $opam/repo/$repo/config} *)
   val raw_config: dirname -> repository_name -> filename
 
@@ -273,9 +270,6 @@ module Repository: sig
 
   (** Packages folder: {i $opam/repo/$repo/packages} *)
   val packages_dir: repository -> dirname
-
-  (** Remote package files: {i $remote/packages} *)
-  val remote_packages_dir: repository -> dirname
 
   (** Package folder: {i $opam/repo/$repo/packages/XXX/$NAME.$VERSION} *)
   val packages: repository -> string option -> package -> dirname
@@ -298,9 +292,6 @@ module Repository: sig
       {i $opam/repo/$repo/archives/$NAME.$VERSION.tar.gz} *)
   val archive: repository -> package -> filename
 
-  (** Remote archive {i $remote/archives/$NAME.$VERSION.tar.gz} *)
-  val remote_archive: repository -> package -> filename
-
   (** Return the archive folder: {i $opam/repo/$repo/archives/} *)
   val archives_dir: repository -> dirname
 
@@ -317,7 +308,19 @@ module Repository: sig
   (** Compiler description files: {i $opam/repo/$repo/compilers/XXX/$OVERSION.descr} *)
   val compiler_descr: repository -> string option -> compiler -> filename
 
-  (** Remote compiler files: {i $remote/compilers} *)
-  val remote_compilers_dir: repository -> dirname
+  module Remote : sig
+    (** Remote repo file address {i $remote/repo} *)
+    val repo: repository -> string
+
+    (** Remote package directory address: {i $remote/packages} *)
+    val packages_dir: repository -> string
+
+    (** Remote package archive address {i
+        $remote/archives/$NAME.$VERSION.tar.gz} *)
+    val archive: repository -> package -> string
+
+    (** Remote compiler dir address: {i $remote/compilers} *)
+    val compilers_dir: repository -> string
+  end
 
 end

@@ -61,7 +61,7 @@ let rebuild_local_state ~write repo =
   index
 
 let state_of_index_file repo index_file =
-  let repo_address = OpamFilename.raw_dir (fst repo.repo_address) in
+  let repo_address,_ = repo.repo_address in
   OpamFilename.Attribute.Set.fold (fun r state ->
       let base = OpamFilename.Attribute.base r in
       let perm = match OpamFilename.Attribute.perm r with
@@ -91,9 +91,9 @@ let get_state repo =
 
 let sync_state repo =
   let old_state = get_state repo in
-  let repo_address = OpamFilename.raw_dir (fst repo.repo_address) in
-  let remote_index_file = make_index_file repo_address in
-  let remote_index_archive = make_index_archive repo_address in
+  let repo_address,_ = repo.repo_address in
+  let remote_index_file = repo_address ^"/urls.txt" in
+  let remote_index_archive = repo_address ^"/index.tar.gz" in
   let index_file = make_index_file repo.repo_root in
   let index_file_new = make_index_file_new repo.repo_root in
   let index_archive = make_index_archive repo.repo_root in
@@ -194,9 +194,8 @@ module B = struct
     log "pull-file into %a: %s"
       (slog OpamFilename.Dir.to_string) dirname
       remote_url;
-    let filename = OpamFilename.of_string remote_url in
-    let base = OpamFilename.basename filename in
-    let local_file = OpamFilename.create dirname base in
+    let basename = OpamMisc.url_basename remote_url in
+    let local_file = OpamFilename.create dirname basename in
     let check_sum f = match checksum with
       | None   -> false
       | Some c -> OpamFilename.digest f = c
@@ -221,12 +220,12 @@ module B = struct
     else
     OpamProcess.Job.catch
       (fun e -> OpamMisc.fatal e; Done (Not_available remote_url)) @@
-    OpamFilename.download ~overwrite:true filename dirname
+    OpamFilename.download ~overwrite:true remote_url dirname
     @@+ fun local_file ->
     if OpamRepository.check_digest local_file checksum then
       (OpamGlobals.msg "[%s] %s downloaded\n"
          (OpamGlobals.colorise `green (OpamPackage.to_string package))
-         (OpamFilename.to_string filename);
+         remote_url;
        Done (Result (F local_file)))
     else
       (OpamSystem.remove_file local_file;

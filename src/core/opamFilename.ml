@@ -68,12 +68,12 @@ let patch filename dirname =
 
 let cleandir dirname =
   log "cleandir %a" (slog Dir.to_string) dirname;
-  OpamSystem.remove (Dir.to_string dirname);
-  OpamSystem.mkdir dirname
+  if F.test F.Is_dir dirname then
+    List.iter OpamSystem.remove (F.ls (Dir.to_string dirname))
+  else
+    OpamSystem.mkdir dirname
 
-let exists_dir dirname =
-  try (Unix.stat (Dir.to_string dirname)).Unix.st_kind = Unix.S_DIR
-  with Unix.Unix_error _ -> false
+let exists_dir dirname = F.test F.Is_dir dirname
 
 let copy_dir ~src ~dst =
   if exists_dir dst then
@@ -100,17 +100,15 @@ let readlink src =
   else
     OpamSystem.internal_error "%s does not exist." (to_string src)
 
-let download ~overwrite ?compress filename dirname =
+let download ~overwrite ?compress url dirname =
   OpamSystem.mkdir dirname;
-  let dst = to_string (create dirname (basename filename)) in
-  OpamSystem.download ~overwrite ?compress
-    ~filename:(to_string filename) ~dst
+  let dst = to_string (create dirname (OpamMisc.url_basename url)) in
+  OpamSystem.download ~overwrite ?compress ~url ~dst
   @@+ fun file -> Done (of_string file)
 
-let download_as ~overwrite ?(compress=false) filename dest =
+let download_as ~overwrite ?(compress=false) url dest =
   OpamSystem.mkdir (dirname dest);
-  OpamSystem.download ~overwrite ~compress
-    ~filename:(to_string filename) ~dst:(to_string dest)
+  OpamSystem.download ~overwrite ~compress ~url ~dst:(to_string dest)
   @@+ fun file ->
   assert (file = to_string dest);
   Done ()

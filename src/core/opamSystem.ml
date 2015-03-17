@@ -22,7 +22,7 @@ exception Internal_error of string
 exception Command_not_found of string
 exception File_not_found of string
 
-let log fmt = OpamGlobals.log "SYSTEM" fmt
+let log ?level fmt = OpamGlobals.log ?level "SYSTEM" fmt
 
 let internal_error fmt =
   Printf.ksprintf (fun str ->
@@ -65,11 +65,12 @@ let path_sep = match OpamGlobals.os () with
 
 
 let mkdir dir =
-  log "mkdir %s" dir;
-  F.mkdir ~parent:true dir
+  if not (F.test F.Is_dir dir) then
+    (log ~level:5 "mkdir %s" dir;
+     F.mkdir ~parent:true dir)
 
 let remove_dir dir =
-  log "rmdir %s" dir;
+  log ~level:3 "rmdir %s" dir;
   F.rm ~recurse:true [dir]
 
 let remove_file file =
@@ -653,7 +654,7 @@ let really_download ~overwrite ?(compress=false) ~src ~dst =
         raise e)
     (with_tmp_dir_job aux)
 
-let download ~overwrite ?compress ~filename:src ~dst:dst =
+let download ~overwrite ?compress ~url:src ~dst:dst =
   if dst = src then
     Done dst
   else if Sys.file_exists src then (

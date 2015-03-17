@@ -123,15 +123,15 @@ module B = struct
 
   let pull_repo repo =
     log "pull-repo";
-    pull_file_quiet repo.repo_root (OpamPath.Repository.remote_repo repo)
+    pull_file_quiet repo.repo_root (OpamPath.Repository.Remote.repo repo)
     @@+ fun _ ->
     pull_dir_quiet
       (OpamPath.Repository.packages_dir repo)
-      (OpamPath.Repository.remote_packages_dir repo)
+      (OpamPath.Repository.Remote.packages_dir repo)
     @@+ fun _ ->
     pull_dir_quiet
       (OpamPath.Repository.compilers_dir repo)
-      (OpamPath.Repository.remote_compilers_dir repo)
+      (OpamPath.Repository.Remote.compilers_dir repo)
     @@+ fun _ ->
     let archives = OpamSystem.files (OpamPath.Repository.archives_dir repo) in
     log "archives: %a"
@@ -145,7 +145,7 @@ module B = struct
           OpamSystem.remove_file archive;
           dl_archives archives
         | Some nv ->
-          let remote_filename = OpamPath.Repository.remote_archive repo nv in
+          let remote_filename = OpamPath.Repository.Remote.archive repo nv in
           rsync_file remote_filename archive @@+ function
           | Not_available _ -> OpamSystem.remove_file archive; dl_archives archives
           | _ -> dl_archives archives

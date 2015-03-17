@@ -687,6 +687,15 @@ let prettify_path s =
     | None   -> s
   with Not_found -> s
 
+let url_basename url =
+  let url = match rcut_at url '?' with
+    | Some (u,_) -> u
+    | None -> url
+  in
+  match rcut_at url '/' with
+  | Some (_,b) -> b
+  | None -> url
+
 let registered_at_exit = ref []
 let at_exit f =
   Pervasives.at_exit f;

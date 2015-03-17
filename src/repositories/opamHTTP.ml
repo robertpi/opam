@@ -23,9 +23,9 @@ let log msg = OpamGlobals.log "CURL" msg
 let slog = OpamGlobals.slog
 
 type state = {
-  local_remote : (filename * int * string) filename_map;
+  local_remote : (string * int * string) filename_map;
   (* map of local files to address, perms, md5 *)
-  remote_local : filename filename_map;
+  remote_local : filename OpamMisc.StringMap.t;
   (* reverse map of addresses to local files *)
 }
 
@@ -68,16 +68,16 @@ let state_of_index_file repo index_file =
         | None  ->  0o640
         | Some p -> p in
       let digest = OpamFilename.Attribute.md5 r in
-      let remote = repo_address // OpamFilename.Base.to_string base in
+      let remote = repo_address^"/"^OpamFilename.Base.to_string base in
       let local = OpamFilename.create repo.repo_root base in
       { remote_local =
-          OpamFilename.Map.add remote local state.remote_local;
+          OpamMisc.StringMap.add remote local state.remote_local;
         local_remote =
           OpamFilename.Map.add local (remote,perm,digest) state.local_remote; }
     )
     index_file
     { local_remote = OpamFilename.Map.empty;
-      remote_local = OpamFilename.Map.empty; }
+      remote_local = OpamMisc.StringMap.empty; }
 
 let get_state repo =
   try List.assoc repo.repo_address !state_cache with Not_found ->
@@ -235,7 +235,9 @@ module B = struct
   let pull_archive repo filename =
     log "pull-archive";
     let state = get_state repo in
-    let local_file = OpamFilename.Map.find filename state.remote_local in
+    let local_file =
+      OpamMisc.StringMap.find (OpamFilename.to_string filename)
+        state.remote_local in
     if is_up_to_date state local_file then
       Done (Up_to_date local_file)
     else

@@ -476,7 +476,7 @@ let extract file dst =
       match list (F.And (F.Is_dir, F.Not F.Is_link)) tmp_dir with
       | [x] ->
         mkdir (Filename.dirname dst);
-        sys_command "mv" [x; dst]
+        mv x dst
       | _   ->
         internal_error "The archive %S contains multiple root directories."
           file
@@ -641,9 +641,8 @@ let really_download ~overwrite ?(compress=false) ~src ~dst =
       if Sys.file_exists dst then
         if overwrite then remove dst
         else internal_error "The downloaded file will overwrite %s." dst;
-      OpamProcess.command ~dir ~verbose:(verbose_for_base_commands ())
-        "mv" [filename; dst ]
-      @@> fun r -> raise_on_process_error r; Done dst
+      mv filename dst;
+      Done dst
   in
   OpamProcess.Job.catch
     (function
@@ -661,8 +660,8 @@ let download ~overwrite ?compress ~url:src ~dst:dst =
     if Sys.file_exists dst then
       if overwrite then remove dst
       else internal_error "The downloaded file will overwrite %s." dst;
-    OpamProcess.command ~verbose:(verbose_for_base_commands ()) "cp" [src; dst]
-    @@> fun r -> raise_on_process_error r; Done dst
+    copy src dst;
+    Done dst
   ) else
     really_download ~overwrite ?compress ~src ~dst
 

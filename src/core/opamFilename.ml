@@ -79,7 +79,16 @@ let copy_dir ~src ~dst =
   if exists_dir dst then
     OpamSystem.internal_error
       "Cannot create %s as the directory already exists." (Dir.to_string dst);
-  OpamSystem.sys_command "cp" ["-PR"; Dir.to_string src; Dir.to_string dst]
+  List.iter (fun dir ->
+      OpamSystem.mkdir (FP.reparent src dst dir);
+      let files = OpamSystem.files dir in
+      let links,files = List.partition (F.test F.Is_link) files in
+      F.cp files (FP.reparent src dst dir);
+      List.iter (fun f ->
+          (* F.readlink makes absolute, we want the raw link *)
+          Unix.symlink (Unix.readlink f) (FP.reparent src dst f)
+        ) links
+    ) (src::OpamSystem.rec_dirs src)
 
 let link_dir ~src ~dst =
   if exists_dir dst then
